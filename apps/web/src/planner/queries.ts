@@ -6,8 +6,25 @@ import {
   type ListMessagesResponse,
   type SnapshotResponse,
 } from '@trip/contracts';
-import { api } from '../lib/api';
+import { api, ApiRequestError } from '../lib/api';
 import { subscribeToTrip } from '../lib/realtime';
+
+/**
+ * A trip that answers 404 is one this identity is not a member of, and that is
+ * permanent for this browser: retrying and polling can never turn it into a
+ * yes. Both reads stop rather than hammering the API every five seconds.
+ */
+function retryUnlessUnreachable(failureCount: number, error: Error): boolean {
+  const unreachable = error instanceof ApiRequestError && error.code === 'NOT_FOUND';
+  return !unreachable && failureCount < 1;
+}
+
+function pollUnlessFailed(
+  status: 'error' | 'pending' | 'success',
+  interval: number,
+): number | false {
+  return status === 'error' ? false : interval;
+}
 
 export const snapshotKey = (tripId: string) => ['snapshot', tripId] as const;
 export const messagesKey = (tripId: string) => ['messages', tripId] as const;
@@ -16,11 +33,13 @@ export function useSnapshot(tripId: string): UseQueryResult<SnapshotResponse> {
   return useQuery({
     queryKey: snapshotKey(tripId),
     queryFn: () => api.snapshot(tripId),
+    retry: retryUnlessUnreachable,
     // Realtime can drop; polling is the floor, not the mechanism. While a batch
     // is in flight the plan changes without anyone asking, so it tightens.
     refetchInterval: (query) => {
       const state = query.state.data?.processing.state;
-      return state === 'queued' || state === 'running' ? 1500 : CLIENT_POLL_MS;
+      const interval = state === 'queued' || state === 'running' ? 1500 : CLIENT_POLL_MS;
+      return pollUnlessFailed(query.state.status, interval);
     },
     structuralSharing: (previous, next) => {
       const before = previous as SnapshotResponse | undefined;
@@ -38,7 +57,8 @@ export function useMessages(tripId: string): UseQueryResult<ListMessagesResponse
   return useQuery({
     queryKey: messagesKey(tripId),
     queryFn: () => api.messages(tripId, { limit: 100 }),
-    refetchInterval: CLIENT_POLL_MS,
+    retry: retryUnlessUnreachable,
+    refetchInterval: (query) => pollUnlessFailed(query.state.status, CLIENT_POLL_MS),
   });
 }
 
@@ -58,13 +78,17 @@ export function useRefresh(tripId: string): () => Promise<void> {
  * the cache from the payload, so a dropped or out-of-order notification costs a
  * refetch instead of corrupting what is on screen.
  */
-export function useTripRealtime(tripId: string): void {
+export function useTripRealtime(tripId: string, enabled: boolean): void {
   const refresh = useRefresh(tripId);
   useEffect(() => {
+    // Only once the trip is known to be readable. Opening a socket for a trip
+    // this identity cannot see just produces a connection that is closed again
+    // before it finishes opening.
+    if (!enabled) return;
     return subscribeToTrip(tripId, {
       onCalendarChange: () => void refresh(),
       onMessage: () => void refresh(),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripId]);
+  }, [tripId, enabled]);
 }

@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 /**
  * The real multi-user journey against the built bundle and the real API:
@@ -15,6 +15,14 @@ async function openApp(context: BrowserContext): Promise<Page> {
   return page;
 }
 
+/**
+ * A context carrying the shared anonymous session. Reusing it keeps the suite
+ * inside the auth provider's hourly sign-in quota.
+ */
+async function sharedContext(browser: Browser): Promise<BrowserContext> {
+  return browser.newContext({ storageState: 'tests/e2e/.session.json' });
+}
+
 async function createTrip(page: Page, name: string): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Plan a trip together' })).toBeVisible({
     timeout: 20_000,
@@ -29,7 +37,12 @@ async function createTrip(page: Page, name: string): Promise<void> {
 }
 
 test('two people plan one trip together', async ({ browser }) => {
-  const first = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
+  const first = await browser.newContext({
+    storageState: 'tests/e2e/.session.json',
+    permissions: ['clipboard-read', 'clipboard-write'],
+  });
+  // A genuinely separate identity: this is the one sign-in the suite must pay
+  // for, because two people is the entire point of the test.
   const second = await browser.newContext();
 
   const ada = await openApp(first);
@@ -83,7 +96,7 @@ test('two people plan one trip together', async ({ browser }) => {
 });
 
 test('a stale edit is refused and the plan is refreshed, not overwritten', async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await sharedContext(browser);
   const page = await openApp(context);
   await createTrip(page, 'Ada');
 
@@ -101,7 +114,7 @@ test('a stale edit is refused and the plan is refreshed, not overwritten', async
 });
 
 test('an event nobody attends leaves the calendar and can be put back', async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await sharedContext(browser);
   const page = await openApp(context);
   await createTrip(page, 'Ada');
 
@@ -124,7 +137,8 @@ test('an event nobody attends leaves the calendar and can be put back', async ({
 });
 
 test('a browser that lost its identity is sent back, not stranded', async ({ browser }) => {
-  const context = await browser.newContext();
+  // Its own session, because this test destroys it.
+  const context = await sharedContext(browser);
   const page = await openApp(context);
   await createTrip(page, 'Ada');
 
@@ -140,6 +154,15 @@ test('a browser that lost its identity is sent back, not stranded', async ({ bro
   await expect(page.getByText('This browser is no longer part of that trip.')).toBeVisible({
     timeout: 20_000,
   });
+
+  // A trip this identity cannot read is permanent, so nothing should keep
+  // asking for it every five seconds.
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/trips/')) requests.push(request.url());
+  });
+  await page.waitForTimeout(7000);
+  expect(requests).toEqual([]);
   await page.getByRole('button', { name: 'Start over' }).click();
 
   // Back to a usable app rather than a retry button that can never succeed.

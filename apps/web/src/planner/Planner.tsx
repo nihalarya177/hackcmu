@@ -28,7 +28,7 @@ export function Planner({
   const snapshot = useSnapshot(tripId);
   const messages = useMessages(tripId);
   const refresh = useRefresh(tripId);
-  useTripRealtime(tripId);
+  useTripRealtime(tripId, snapshot.isSuccess);
 
   const [view, setView] = useState<View>('calendar');
   const [draft, setDraft] = useState('');

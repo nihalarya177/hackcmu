@@ -3,7 +3,32 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Minus, Plus } from 'lucide-react';
 import type { DayPathResource, SnapshotResponse } from '@trip/contracts';
+import { loadBrowserConfig } from '../config/env';
 import { clock, money, shortDay } from './format';
+
+/**
+ * The basemap.
+ *
+ * CARTO Positron when a key is configured: near-white land, thin grey roads,
+ * restrained labels, so the member colours are the only saturated things on
+ * screen. Without a key CARTO stamps "API KEY REQUIRED" across every tile, so
+ * the fallback is plain OpenStreetMap, drained in CSS to get close.
+ */
+function basemap(): { url: string; attribution: string; clean: boolean } {
+  const key = loadBrowserConfig().cartoApiKey;
+  if (key === null) {
+    return {
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution: '© OpenStreetMap contributors',
+      clean: false,
+    };
+  }
+  return {
+    url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(key)}`,
+    attribution: '© OpenStreetMap contributors © CARTO',
+    clean: true,
+  };
+}
 
 type Stop = {
   eventId: string;
@@ -195,13 +220,13 @@ function Canvas({
       attributionControl: true,
     }).setView([snapshot.trip.destination_center.lat, snapshot.trip.destination_center.lon], 13);
 
-    // Ordinary OpenStreetMap tiles, which this project is licensed to use,
-    // desaturated in CSS rather than swapped for a hosted "clean" basemap.
-    // The alternatives all want an API key or an account: CARTO now stamps
-    // "API KEY REQUIRED" across unkeyed tiles, and Stadia returns 401.
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors',
+    const tiles = basemap();
+    box.current.dataset['basemap'] = tiles.clean ? 'clean' : 'osm';
+    L.tileLayer(tiles.url, {
+      maxZoom: tiles.clean ? 20 : 19,
+      subdomains: tiles.clean ? 'abcd' : 'abc',
+      detectRetina: tiles.clean,
+      attribution: tiles.attribution,
     })
       .on('tileerror', onTileError)
       .addTo(instance);

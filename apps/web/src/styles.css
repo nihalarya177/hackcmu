@@ -1,11 +1,11 @@
 @import 'tailwindcss';
 
-/* The standard OpenStreetMap palette — red motorways, yellow A roads, strong
-   greens — is the single most dated thing about a default map, and it fights
-   the member colours for attention. Draining it here keeps us on the tiles we
-   are licensed to use while leaving the plan as the only saturated thing on
-   screen. */
-.leaflet-tile-pane {
+/* Only the fallback basemap needs this. The standard OpenStreetMap palette —
+   red motorways, yellow A roads, strong greens — fights the member colours for
+   attention, so without a CARTO key the tiles are drained here instead. A
+   proper Positron basemap is already this restrained and must not be drained
+   twice. */
+[data-basemap='osm'] .leaflet-tile-pane {
   filter: saturate(0.18) brightness(1.06) contrast(0.92);
 }
 

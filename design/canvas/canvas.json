@@ -1,0 +1,25 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Planner",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    }
+  ],
+  "annotations": [
+    {
+      "id": "locked",
+      "x": 0,
+      "y": -140,
+      "w": 460,
+      "text": "Direction B, locked in.\n\nChanged from the sketch: the calendar is a real time grid with an hour axis, the calendar column is wider, your own messages sit in the same reading column but indented and filled in your colour, Invite link and Export itinerary live in the top bar, and warnings have their own shelf above the calendar so several can stack."
+    }
+  ],
+  "launch": {
+    "view": "focused",
+    "file": "Main.dc.html"
+  }
+}

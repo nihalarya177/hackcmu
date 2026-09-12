@@ -9,6 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fullcalendar/core": "6.1.21",
+    "@fullcalendar/interaction": "6.1.21",
+    "@fullcalendar/react": "6.1.21",
+    "@fullcalendar/timegrid": "6.1.21",
     "@supabase/supabase-js": "2.116.0",
     "@tanstack/react-query": "5.102.8",
     "@trip/contracts": "*",

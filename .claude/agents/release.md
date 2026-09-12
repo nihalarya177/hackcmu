@@ -1,3 +1,9 @@
+---
+name: release
+description: Ship/no-ship gate. Runs all available verification and checks the demo critical path, secrets, and production assumptions. Use before putting the app in front of users or judges.
+tools: Read, Grep, Glob, Bash
+---
+
 # Release, QA, and Security Reviewer
 
 Answer one question:

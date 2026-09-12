@@ -3,19 +3,41 @@ import { expect, test } from '@playwright/test';
 /**
  * Placeholder for the two-browser collaboration suite.
  *
- * It checks only what the foundation actually provides: the built bundle
- * loads, reads its public configuration, and reaches the same-origin API.
- * Chat, calendar and attendance flows are added with the manual planner.
+ * It checks what the build actually provides today: the mode gate, a demo
+ * session that starts with no credentials at all, and a live session that
+ * reaches the real API. Chat, calendar and attendance flows are added with the
+ * planner UI.
  */
-test('the foundation shell loads and reaches the API', async ({ page }) => {
+test('the mode gate asks before touching any backend dependency', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Trip Planner' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Demo/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Live/ })).toBeVisible();
+});
 
-  // Both rows are asserted: an API that answers while the browser bundle has no
-  // usable configuration is not a working page.
-  const session = page.locator('div', { has: page.getByText('Anonymous session') }).last();
-  await expect(session.getByText('started')).toBeVisible({ timeout: 15_000 });
+test('demo mode starts without credentials and stays clearly labelled', async ({ page }) => {
+  // No Supabase session and no API call is required to reach this state.
+  const authCalls: string[] = [];
+  await page.route('**/auth/v1/**', (route) => {
+    authCalls.push(route.request().url());
+    return route.abort();
+  });
 
-  const readiness = page.locator('div', { has: page.getByText('API readiness') }).last();
-  await expect(readiness.getByText('ready')).toBeVisible({ timeout: 15_000 });
+  await page.goto('/?mode=demo');
+  await expect(page.getByText('Demo mode', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset demo data' })).toBeVisible();
+
+  // Four simulated participants, and switching between them is a demo control.
+  for (const name of ['Ana', 'Ben', 'Cleo', 'Dev']) {
+    await expect(page.getByRole('button', { name })).toBeVisible();
+  }
+  expect(authCalls).toEqual([]);
+});
+
+test('live mode obtains a real session and reaches the API', async ({ page }) => {
+  await page.goto('/?mode=live');
+  await expect(page.getByText('Live mode')).toBeVisible();
+  // A live failure must surface as an error, never as demo content.
+  await expect(page.getByText('Demo mode', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Available in this mode')).toBeVisible({ timeout: 15_000 });
 });

@@ -11,49 +11,17 @@ import {
   processingStatusResponse,
   snapshotResponse,
   tripMutationResponse,
-  type ApiError,
   type CreateInviteResponse,
   type CreateMessageRequest,
   type CreateTripRequest,
-  type ErrorCode,
   type JoinTripRequest,
   type ListMessagesQuery,
   type PatchSelfPersonRequest,
   type PatchTripRequest,
 } from '@trip/contracts';
+import { ApiRequestError } from './apiError';
 import { accessToken } from './supabase';
 import { loadBrowserConfig } from '../config/env';
-
-/** A failure the UI can branch on without parsing prose. */
-export class ApiRequestError extends Error {
-  readonly code: ErrorCode | 'NETWORK' | 'MALFORMED_RESPONSE';
-  readonly status: number;
-  readonly requestId: string | null;
-  readonly currentCalendarVersion: string | null;
-  readonly retryAfterSeconds: number | null;
-  readonly fieldErrors: ApiError['error']['field_errors'];
-
-  constructor(
-    code: ErrorCode | 'NETWORK' | 'MALFORMED_RESPONSE',
-    message: string,
-    options: {
-      status?: number;
-      requestId?: string | null;
-      currentCalendarVersion?: string | null;
-      retryAfterSeconds?: number | null;
-      fieldErrors?: ApiError['error']['field_errors'];
-    } = {},
-  ) {
-    super(message);
-    this.name = 'ApiRequestError';
-    this.code = code;
-    this.status = options.status ?? 0;
-    this.requestId = options.requestId ?? null;
-    this.currentCalendarVersion = options.currentCalendarVersion ?? null;
-    this.retryAfterSeconds = options.retryAfterSeconds ?? null;
-    this.fieldErrors = options.fieldErrors;
-  }
-}
 
 async function request<T extends z.ZodType>(
   path: string,
@@ -121,6 +89,8 @@ const patch = (body: unknown): RequestInit => ({ method: 'PATCH', body: JSON.str
  * strict schemas, so an extra or misspelled field is a 400; typing it here
  * turns that into a compile error instead of a runtime surprise.
  */
+export { ApiRequestError } from './apiError';
+
 export const api = {
   createTrip: (body: CreateTripRequest) => request('/api/trips', createTripResponse, json(body)),
 

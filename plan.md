@@ -167,6 +167,8 @@ Next owner: Backend and Frontend can now work in parallel on **M1**. Backend sta
 
 Before M1 feature work, someone should close the runtime-role gap below: every isolation guarantee that RLS is meant to provide is currently defence-in-depth only, because the configured API credential bypasses it.
 
+Adapter boundary (plan_v2 "Small Implementation Boundary"): implemented in `apps/web/src/mode.ts` and `apps/web/src/adapter/`. Mode is chosen before any backend dependency is constructed; the live adapter wraps `lib/api.ts` and starts Auth only in `start()`, the demo adapter needs no credentials and serves one namespaced simulated trip. Per-mode `capabilities` replace hardcoded controls. Verified with `./scripts/verify.sh` (6/6, 61 unit tests) and three Playwright tests, including demo startup from a bundle built with no `.env`. The demo seed is deliberately thin: DATA-1 supplies events, venues and scenarios; `requestProcessing`, places, bot actions and export report unavailable in both modes until implemented.
+
 When claimed, record: task ID, owner, scope, dependencies, status, verification evidence, and next handoff. Keep unfinished checkboxes open.
 
 ## Blockers and Verification Debt

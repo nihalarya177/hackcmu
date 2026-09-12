@@ -20,10 +20,10 @@ import type { DemoState } from './state';
  * keeps the demo's calendar, budget panel, warnings and map from disagreeing
  * after an edit.
  *
- * Scope note: only the two warning kinds that the current demo dataset can
- * actually evidence are produced. `outside_opening_hours`, `venue_closed` and
- * `insufficient_travel_time` need stored hours and verified coordinates, so
- * they stay absent rather than invented.
+ * Scope note: every warning here is computed from stored evidence. Travel
+ * warnings use the disclosed straight-line estimate, and the two hours
+ * warnings fire only for a date whose schedule is actually recorded — an
+ * unknown schedule stays unknown rather than being read as open or closed.
  */
 export function deriveSnapshot(state: DemoState, serverTime: string): SnapshotResponse {
   const budgets = deriveBudgets(state);
@@ -130,6 +130,7 @@ function deriveUnknownCoverage(state: DemoState): UnknownCoverageResource {
  */
 function deriveWarnings(state: DemoState, budgets: PersonBudgetResource[]): WarningResource[] {
   const warnings: WarningResource[] = [];
+  const places = new Map(state.places.map((place) => [place.id, place]));
 
   for (const person of state.members) {
     const events = attendedEvents(state, person.id);
@@ -154,6 +155,39 @@ function deriveWarnings(state: DemoState, budgets: PersonBudgetResource[]): Warn
       }
     }
 
+    // Consecutive stops on one day, with the straight-line estimate as the
+    // only claim about travel. Unknown coordinates produce no warning.
+    for (const [index, current] of events.entries()) {
+      const next = events[index + 1];
+      if (next === undefined || next.local_date !== current.local_date) continue;
+      const from = coordinateOf(current, places);
+      const to = coordinateOf(next, places);
+      if (from === null || to === null) continue;
+
+      const distanceKm = haversineKm(from, to);
+      const requiredMinutes = Math.ceil((distanceKm / TRAVEL_ESTIMATE.speedKmPerHour) * 60);
+      const availableMinutes = next.start_minute - current.end_minute;
+      // Overlapping stops are a double booking, not a travel problem. Reporting
+      // both for the same pair would double-count one underlying conflict.
+      if (availableMinutes < 0) continue;
+      if (availableMinutes >= requiredMinutes) continue;
+
+      warnings.push({
+        kind: 'insufficient_travel_time',
+        key: `insufficient_travel_time:${person.id}:${current.id}:${next.id}`,
+        person_id: person.id,
+        event_ids: [current.id, next.id],
+        active: true,
+        activated_at_version: state.calendar_version,
+        resolved_at_version: null,
+        details: {
+          distance_km: Math.round(distanceKm * 100) / 100,
+          required_minutes: requiredMinutes,
+          available_minutes: availableMinutes,
+        },
+      });
+    }
+
     const budget = budgets.find((row) => row.person_id === person.id);
     if (budget !== undefined && budget.known_spend_cents > budget.budget_cents) {
       warnings.push({
@@ -167,6 +201,49 @@ function deriveWarnings(state: DemoState, budgets: PersonBudgetResource[]): Warn
         details: {
           budget_cents: budget.budget_cents,
           known_spend_cents: budget.known_spend_cents,
+        },
+      });
+    }
+  }
+
+  // Opening hours are a property of the venue, not of one person's day.
+  for (const event of [...state.events].sort(compareEvents)) {
+    if (event.place_id === null) continue;
+    const place = places.get(event.place_id);
+    if (place === undefined) continue;
+    const day = place.hours_days.find((entry) => entry.date === event.local_date);
+    // No recorded schedule for that exact date means unknown, never open.
+    if (day === undefined) continue;
+
+    const base = {
+      person_id: null,
+      event_ids: [event.id],
+      active: true,
+      activated_at_version: state.calendar_version,
+      resolved_at_version: null,
+    };
+    if (day.intervals.length === 0) {
+      warnings.push({
+        ...base,
+        kind: 'venue_closed',
+        key: `venue_closed:${place.id}:${event.id}`,
+        details: { place_id: place.id, provenance: place.hours_provenance },
+      });
+      continue;
+    }
+    const inside = day.intervals.some(
+      (interval) =>
+        event.start_minute >= interval.start_minute && event.end_minute <= interval.end_minute,
+    );
+    if (!inside) {
+      warnings.push({
+        ...base,
+        kind: 'outside_opening_hours',
+        key: `outside_opening_hours:${place.id}:${event.id}`,
+        details: {
+          place_id: place.id,
+          stored_intervals: day.intervals,
+          provenance: place.hours_provenance,
         },
       });
     }
@@ -224,7 +301,7 @@ function deriveDayPaths(state: DemoState): DayPathResource[] {
         const nodeId = path.join('>');
         let node = nodes.get(nodeId);
         if (node === undefined) {
-          const coordinate = coordinateFor(event, places);
+          const coordinate = coordinateOf(event, places);
           node = {
             id: nodeId,
             parent_id: parentId,
@@ -279,10 +356,7 @@ function deriveDayPaths(state: DemoState): DayPathResource[] {
   });
 }
 
-function coordinateFor(
-  event: EventResource,
-  places: Map<string, PlaceResource>,
-): Coordinate | null {
+function coordinateOf(event: EventResource, places: Map<string, PlaceResource>): Coordinate | null {
   if (event.place_id === null) return null;
   return places.get(event.place_id)?.coordinate ?? null;
 }

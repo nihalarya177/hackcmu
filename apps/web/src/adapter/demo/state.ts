@@ -31,6 +31,8 @@ export type DemoState = {
   messages: MessageResource[];
   deletions: DeletedEventResource[];
   actions: BotActionResource[];
+  /** Scripted scenarios already committed. Each one applies at most once. */
+  applied_scenarios: string[];
   next_message_id: string;
   processing: ProcessingStatusResource;
 };

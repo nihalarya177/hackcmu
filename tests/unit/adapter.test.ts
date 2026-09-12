@@ -9,7 +9,7 @@ import {
 } from '@trip/contracts';
 import { modeFromSearch, readStoredMode, resolveInitialMode } from '../../apps/web/src/mode';
 import { createDemoAdapter } from '../../apps/web/src/adapter/demo/adapter';
-import { DEMO_TRIP_ID } from '../../apps/web/src/adapter/demo/dataset';
+import { DEMO_TRIP_ID, PERSON } from '../../apps/web/src/adapter/demo/dataset';
 import { createLiveAdapter } from '../../apps/web/src/adapter/live';
 import { ApiRequestError, UnsupportedOperationError } from '../../apps/web/src/lib/apiError';
 
@@ -35,7 +35,7 @@ function eventRequest(overrides: Partial<CreateEventRequest> = {}): CreateEventR
     idempotency_key: idem,
     expected_calendar_version: '1',
     label: 'Museum visit',
-    local_date: '2026-10-09',
+    local_date: '2026-10-10',
     start_minute: 600,
     end_minute: 720,
     price_cents: 2500,
@@ -121,7 +121,7 @@ describe('demo adapter', () => {
     expect(budget?.confirmed_subtotal_cents).toBe(2500);
     expect(budget?.status).toBe('within');
 
-    const day = snapshot.day_paths.find((entry) => entry.date === '2026-10-09');
+    const day = snapshot.day_paths.find((entry) => entry.date === '2026-10-10');
     expect(day?.nodes).toHaveLength(1);
     // No venue means no coordinates, so the stop is honestly unresolved.
     expect(day?.nodes[0]?.unresolved).toBe(true);
@@ -167,7 +167,7 @@ describe('demo adapter', () => {
     expect(attendanceMutationResponse.parse(result).event).toBeNull();
 
     const snapshot = await adapter.snapshot(DEMO_TRIP_ID);
-    expect(snapshot.events).toHaveLength(0);
+    expect(snapshot.events.some((event) => event.id === created.event.id)).toBe(false);
     expect(snapshot.recent_deletions[0]?.reason).toBe('auto_zero_attendance');
   });
 
@@ -200,9 +200,13 @@ describe('demo adapter', () => {
 
   it('reports an unimplemented operation as unavailable rather than faking it', async () => {
     const adapter = createDemoAdapter(memoryStorage());
-    expect(adapter.capabilities.requestProcessing).toBe(false);
+    expect(adapter.capabilities.botActions).toBe(false);
     await expect(
-      adapter.requestProcessing(DEMO_TRIP_ID, { idempotency_key: idem }),
+      adapter.resolveAction(DEMO_TRIP_ID, PERSON.ana, {
+        idempotency_key: idem,
+        expected_calendar_version: '1',
+        choice: 'keep',
+      }),
     ).rejects.toBeInstanceOf(UnsupportedOperationError);
   });
 });

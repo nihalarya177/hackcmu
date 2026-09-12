@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createAdapter, DEMO_TRIP_ID, type PlannerAdapter } from './adapter';
+import type { SnapshotResponse } from '@trip/contracts';
 import { browserStorage, resolveInitialMode, writeStoredMode, type Mode } from './mode';
 
 /**
@@ -112,9 +113,26 @@ function ModeSession({ mode, onLeave }: { mode: Mode; onLeave: () => void }): Re
  */
 function AdapterSummary({ adapter }: { adapter: PlannerAdapter }): React.ReactElement {
   const demo = adapter.demo;
-  const [, bump] = useState(0);
+  const [revision, bump] = useState(0);
+  const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null);
 
   useEffect(() => demo?.subscribe(() => bump((n) => n + 1)), [demo]);
+
+  useEffect(() => {
+    if (demo === null) return;
+    let cancelled = false;
+    void adapter.snapshot(demo.tripId).then(
+      (result) => {
+        if (!cancelled) setSnapshot(result);
+      },
+      () => {
+        if (!cancelled) setSnapshot(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [adapter, demo, revision]);
 
   const available = Object.entries(adapter.capabilities)
     .filter(([, enabled]) => enabled)
@@ -154,6 +172,59 @@ function AdapterSummary({ adapter }: { adapter: PlannerAdapter }): React.ReactEl
             Reset demo data
           </button>
           <p className="mt-2 text-xs text-slate-500">Trip {DEMO_TRIP_ID}</p>
+        </section>
+      )}
+
+      {demo !== null && snapshot !== null && (
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-medium text-slate-700">
+              {snapshot.trip.trip_name} · {snapshot.events.length} events · v
+              {snapshot.calendar_version}
+            </h2>
+            <span className="text-xs text-slate-500">{snapshot.processing.state}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void adapter
+                .requestProcessing(demo.tripId, { idempotency_key: `demo-${Date.now()}` })
+                .then(() => setTimeout(() => bump((n) => n + 1), 1200));
+            }}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white"
+          >
+            Update plan
+          </button>
+
+          <ul className="mt-3 grid gap-1">
+            {demo.scenarios().map((scenario) => (
+              <li key={scenario.id} className="text-sm">
+                <button
+                  type="button"
+                  disabled={scenario.applied}
+                  onClick={() => {
+                    demo.runScenario(scenario.id);
+                    setTimeout(() => bump((n) => n + 1), 1200);
+                  }}
+                  className="text-left text-slate-700 underline disabled:text-slate-400 disabled:no-underline"
+                >
+                  {scenario.title}
+                </button>
+                {scenario.applied && <span className="ml-2 text-xs text-slate-400">played</span>}
+              </li>
+            ))}
+          </ul>
+
+          {snapshot.warnings.length > 0 && (
+            <ul className="mt-3 grid gap-1 border-t border-slate-200 pt-3">
+              {snapshot.warnings.map((warning) => (
+                <li key={warning.key} className="text-xs text-amber-800">
+                  {warning.kind}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

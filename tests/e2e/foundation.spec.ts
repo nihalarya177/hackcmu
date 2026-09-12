@@ -29,9 +29,16 @@ test('demo mode starts without credentials and stays clearly labelled', async ({
 
   // Four simulated participants, and switching between them is a demo control.
   for (const name of ['Ana', 'Ben', 'Cleo', 'Dev']) {
-    await expect(page.getByRole('button', { name })).toBeVisible();
+    await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
   expect(authCalls).toEqual([]);
+
+  // The scripted planner runs entirely locally: no provider, no API.
+  await page.getByRole('button', { name: 'Update plan' }).click();
+  await expect(page.getByText('Two people agree on the art museum')).toBeDisabled({
+    timeout: 10_000,
+  });
+  await expect(page.getByRole('heading', { name: /3 events/ })).toBeVisible();
 });
 
 test('live mode obtains a real session and reaches the API', async ({ page }) => {

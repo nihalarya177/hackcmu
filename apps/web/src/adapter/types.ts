@@ -66,6 +66,10 @@ export type DemoControls = {
   switchParticipant(personId: string): void;
   /** Restores the seeded dataset. Touches demo storage only. */
   reset(): void;
+  /** The named scripted outcomes, and which have already played. */
+  scenarios(): { id: string; title: string; hint: string; applied: boolean }[];
+  /** Plays one scenario by name, for rehearsal, bypassing keyword matching. */
+  runScenario(id: string): void;
   /** Notifies on any demo state change so callers can invalidate their cache. */
   subscribe(listener: () => void): () => void;
 };

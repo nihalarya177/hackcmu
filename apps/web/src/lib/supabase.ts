@@ -34,3 +34,19 @@ export async function accessToken(): Promise<string | null> {
   const { data } = await supabase().auth.getSession();
   return data.session?.access_token ?? null;
 }
+
+/**
+ * Forces a refresh and returns the new token.
+ *
+ * An access token lasts an hour, and `getSession` hands back whatever is
+ * current at the moment it is asked. A token read just before it expires can
+ * still be expired by the time the server asks the auth provider to verify it,
+ * which comes back as a 401 for a session that is otherwise perfectly valid.
+ * This is how that is recovered from, rather than showing the user an error
+ * for a race they did nothing to cause.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  const { data, error } = await supabase().auth.refreshSession();
+  if (error !== null) return null;
+  return data.session?.access_token ?? null;
+}

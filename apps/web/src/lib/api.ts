@@ -33,7 +33,7 @@ import {
   type PatchSelfPersonRequest,
   type PatchTripRequest,
 } from '@trip/contracts';
-import { accessToken } from './supabase';
+import { accessToken, refreshAccessToken } from './supabase';
 import { loadBrowserConfig } from '../config/env';
 
 /** A failure the UI can branch on without parsing prose. */
@@ -72,22 +72,38 @@ async function request<T extends z.ZodType>(
   schema: T,
   init: RequestInit = {},
 ): Promise<z.infer<T>> {
-  const base = loadBrowserConfig().apiBaseUrl;
-  const token = await accessToken();
+  const first = await send(path, init, await accessToken());
 
+  // A token can expire between being read here and being verified there. That
+  // is a stale token, not a missing session, so it is refreshed and the call
+  // is made once more before anyone is told they are signed out.
+  if (first.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed !== null) return parse(path, schema, await send(path, init, refreshed));
+  }
+  return parse(path, schema, first);
+}
+
+async function send(path: string, init: RequestInit, token: string | null): Promise<Response> {
+  const base = loadBrowserConfig().apiBaseUrl;
   const headers = new Headers(init.headers);
   headers.set('accept', 'application/json');
   if (init.body !== undefined) headers.set('content-type', 'application/json');
   if (token !== null) headers.set('authorization', `Bearer ${token}`);
 
-  let response: Response;
   try {
-    response = await fetch(`${base}${path}`, { ...init, headers });
+    return await fetch(`${base}${path}`, { ...init, headers });
   } catch {
     // Disconnected never means saved: the caller keeps the draft.
     throw new ApiRequestError('NETWORK', 'Could not reach the server', {});
   }
+}
 
+async function parse<T extends z.ZodType>(
+  path: string,
+  schema: T,
+  response: Response,
+): Promise<z.infer<T>> {
   const payload: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {

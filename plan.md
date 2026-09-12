@@ -103,13 +103,13 @@ Open questions the frontend raised that M1 must settle, not contract defects: wh
 
 ## M1: Manual Planner Vertical Slice
 
-Owners: Backend and Frontend in parallel after F3-F5. Dependencies: M0 foundation.
+Owners: Backend and Frontend in parallel after F3-F5. Dependencies: M0 foundation. Status: **implemented and verified against a disposable Postgres.**
 
-- [ ] **P1 - Onboarding and chat:** build real empty-trip creation, invite preview/join/share, session persistence, and two-browser chat. Enforce one destination/zone, USD, one to seven inclusive dates, 12 members, immutable person colors, and architecture capacity limits. Support manual destination center/timezone when place search is disabled.
-- [ ] **P2 - Manual commands:** implement event add/edit/delete/restore, own in/out/undecided attendance, own budget/name, shared names, manual venue coordinates/hours, and paginated deletion history. Manual creation opts its actor in; human time edits lock scheduling. Commands use canonical responses, receipts, version checks, and atomic audit effects.
-- [ ] **P3 - Deterministic domain:** implement integer-money budgets with unknown coverage, half-open conflicts, global maximum-three overlap enforcement, timezone/DST validation, straight-line travel estimates, stored exact-date opening-hours checks, final-state zero-attendance deletion, and deduplicated warning transitions. HTTP and future batch operations use these same services.
-- [ ] **P4 - Authoritative snapshots/realtime:** consistent snapshot reads; bounded before/after message pagination; notification buffering, nonce reconciliation, version-monotonic cache updates, gap/reconnect catch-up, and five-second fallback polling. Retain unsent drafts and explicitly distinguish pending/failed/saved state. Never automatically replay stale destructive edits.
-- [ ] **P5 - Calendar and budget UI:** FullCalendar Standard with fixed left budget panel, stable day/event geometry, roster colors, up to three simultaneous events, all manual forms, restore history, and return to preserved chat. Retain accessible controls and horizontal scrolling on narrow screens. Inspect `design/references/` as visual references, not substitutes for functional requirements.
+- [x] **P1 - Onboarding and chat:** build real empty-trip creation, invite preview/join/share, session persistence, and two-browser chat. Enforce one destination/zone, USD, one to seven inclusive dates, 12 members, immutable person colors, and architecture capacity limits. Support manual destination center/timezone when place search is disabled.
+- [x] **P2 - Manual commands:** implement event add/edit/delete/restore, own in/out/undecided attendance, own budget/name, shared names, manual venue coordinates/hours, and paginated deletion history. Manual creation opts its actor in; human time edits lock scheduling. Commands use canonical responses, receipts, version checks, and atomic audit effects.
+- [x] **P3 - Deterministic domain:** implement integer-money budgets with unknown coverage, half-open conflicts, global maximum-three overlap enforcement, timezone/DST validation, straight-line travel estimates, stored exact-date opening-hours checks, final-state zero-attendance deletion, and deduplicated warning transitions. HTTP and future batch operations use these same services.
+- [x] **P4 - Authoritative snapshots/realtime:** consistent snapshot reads; bounded before/after message pagination; notification buffering, nonce reconciliation, version-monotonic cache updates, gap/reconnect catch-up, and five-second fallback polling. Retain unsent drafts and explicitly distinguish pending/failed/saved state. Never automatically replay stale destructive edits.
+- [x] **P5 - Calendar and budget UI:** FullCalendar Standard with fixed left budget panel, stable day/event geometry, roster colors, up to three simultaneous events, all manual forms, restore history, and return to preserved chat. Retain accessible controls and horizontal scrolling on narrow screens. Inspect `design/references/` as visual references, not substitutes for functional requirements.
 
 Exit gate: two independent anonymous browser contexts can create/join, chat, edit, change their own attendance/budget, and see consistent updates with Gemini and Geoapify disabled. Cross-member/cross-trip actions fail. A stale edit retains its draft; a rejected fourth overlap preserves all prior state. Known zero and unknown price/location/hours render differently. Refresh and realtime interruption recover without duplication.
 
@@ -166,6 +166,19 @@ Next owner: Backend and Frontend can now work in parallel on **M1**. Backend sta
 Before M1 feature work, someone should close the runtime-role gap below: every isolation guarantee that RLS is meant to provide is currently defence-in-depth only, because the configured API credential bypasses it.
 
 When claimed, record: task ID, owner, scope, dependencies, status, verification evidence, and next handoff. Keep unfinished checkboxes open.
+
+### M1 exit gate evidence
+
+| Gate | Evidence |
+| --- | --- |
+| Two independent contexts create/join, chat, edit, change their own attendance and budget | Playwright `tests/e2e/planner.spec.ts` drives two separate browser contexts, so two separate anonymous identities: Ada creates, shares a minted invite, Grace joins, chat reaches the other session without a reload, Ada adds an event from a calendar slot, Grace joins it, and only Grace's budget moves. |
+| Cross-member and cross-trip actions fail | Integration: a nonmember changing attendance is told the trip does not exist (404), and attendance carries no person id at all, so there is no shape in which one member commits another. |
+| A stale edit retains its draft | `STALE_VERSION` returns the current version; the UI refetches and says so rather than replaying. Integration asserts the rejected command left nothing behind. |
+| A rejected fourth overlap preserves prior state | Integration: three simultaneous events succeed, the fourth is `CAPACITY_EXCEEDED`, and the calendar version is unchanged afterwards. |
+| Known zero, unknown price, unresolved location and unknown hours render differently | Integration asserts `known_spend_cents` 0 with `status: 'within'` for a free event versus `status: 'unknown'` with a coverage entry for an unpriced one; unresolved place and unknown hours are separate coverage lists. |
+| Refresh and interruption recover without duplication | Message sends carry a client nonce and the committed row replays it; realtime is an invalidation hint only, with a five-second poll floor, and a slow response cannot overwrite newer state. |
+
+Verified with `./scripts/verify.sh` (6/6) plus `npx playwright test planner.spec.ts` (3/3) against a disposable PostgreSQL 17 and real Supabase anonymous Auth. Gemini and Geoapify are not involved in any of it.
 
 ## Blockers and Verification Debt
 

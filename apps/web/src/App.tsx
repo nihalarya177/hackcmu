@@ -1,86 +1,81 @@
 import { useEffect, useState } from 'react';
 import { ensureAnonymousSession } from './lib/supabase';
+import { Planner } from './planner/Planner';
+import { Start } from './planner/Start';
 
-type Status =
-  | { state: 'checking' }
-  | { state: 'ready'; sessionStarted: boolean }
-  | { state: 'error'; message: string };
+const TRIP_KEY = 'trip-planner.trip';
+
+type Session = { state: 'starting' } | { state: 'ready' } | { state: 'error'; message: string };
 
 /**
- * Foundation shell.
- *
- * It proves the three things the milestone actually establishes: the browser
- * bundle reads only public configuration, an anonymous session can be
- * obtained, and the same-origin API answers. The planner itself is built on
- * top of this in the next milestone.
+ * Identity is an anonymous Supabase session, established before anything is
+ * read. The last trip is remembered per browser, so a refresh returns to the
+ * conversation rather than to a form.
  */
 export function App(): React.ReactElement {
-  const [status, setStatus] = useState<Status>({ state: 'checking' });
-  const [apiReady, setApiReady] = useState<boolean | null>(null);
+  const [session, setSession] = useState<Session>({ state: 'starting' });
+  const [tripId, setTripId] = useState<string | null>(() => remembered());
 
   useEffect(() => {
     let cancelled = false;
-
-    void (async () => {
-      try {
-        await ensureAnonymousSession();
-        if (!cancelled) setStatus({ state: 'ready', sessionStarted: true });
-      } catch (error) {
+    void ensureAnonymousSession().then(
+      () => {
+        if (!cancelled) setSession({ state: 'ready' });
+      },
+      (error: unknown) => {
         if (!cancelled) {
-          setStatus({
+          setSession({
             state: 'error',
             message: error instanceof Error ? error.message : 'Could not start a session',
           });
         }
-      }
-
-      try {
-        const response = await fetch('/health/ready');
-        if (!cancelled) setApiReady(response.ok);
-      } catch {
-        if (!cancelled) setApiReady(false);
-      }
-    })();
-
+      },
+    );
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 p-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Trip Planner</h1>
-        <p className="text-sm text-slate-600">Foundation build</p>
-      </header>
+  const open = (id: string): void => {
+    try {
+      localStorage.setItem(TRIP_KEY, id);
+    } catch {
+      // Not remembering the trip is a lost convenience, not a failure.
+    }
+    // The invite token has been used; keep it out of the address bar.
+    window.history.replaceState(null, '', window.location.pathname);
+    setTripId(id);
+  };
 
-      <dl className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
-        <Row label="Anonymous session">
-          {status.state === 'checking' && <span className="text-slate-500">checking…</span>}
-          {status.state === 'ready' && <span className="text-green-700">started</span>}
-          {status.state === 'error' && <span className="text-red-700">{status.message}</span>}
-        </Row>
-        <Row label="API readiness">
-          {apiReady === null && <span className="text-slate-500">checking…</span>}
-          {apiReady === true && <span className="text-green-700">ready</span>}
-          {apiReady === false && <span className="text-red-700">unavailable</span>}
-        </Row>
-      </dl>
-    </main>
-  );
+  if (session.state === 'starting') {
+    return <Notice>Starting…</Notice>;
+  }
+  if (session.state === 'error') {
+    return (
+      <Notice>
+        <p className="text-red-800">{session.message}</p>
+        <p className="mt-2 text-stone-500">
+          The app needs its Supabase configuration and a reachable API.
+        </p>
+      </Notice>
+    );
+  }
+
+  return tripId === null ? <Start onTrip={open} /> : <Planner tripId={tripId} />;
 }
 
-function Row({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}): React.ReactElement {
+function remembered(): string | null {
+  try {
+    return localStorage.getItem(TRIP_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function Notice({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-      <dt className="font-medium text-slate-700">{label}</dt>
-      <dd>{children}</dd>
-    </div>
+    <main className="grid min-h-screen place-items-center bg-stone-50 p-6">
+      <div className="max-w-sm text-center text-sm text-stone-600">{children}</div>
+    </main>
   );
 }

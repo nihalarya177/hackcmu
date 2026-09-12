@@ -1,6 +1,13 @@
 import type { z } from 'zod';
 import {
   apiError,
+  attendanceMutationResponse,
+  deleteEventResponse,
+  eventMutationResponse,
+  listDeletedEventsResponse,
+  placeMutationResponse,
+  requestProcessingResponse,
+  resolveActionResponse,
   createTripResponse,
   createMessageResponse,
   createInviteResponse,
@@ -12,9 +19,14 @@ import {
   snapshotResponse,
   tripMutationResponse,
   type ApiError,
+  type CreateEventRequest,
   type CreateInviteResponse,
   type CreateMessageRequest,
   type CreateTripRequest,
+  type PatchEventRequest,
+  type PatchPlaceRequest,
+  type PutSelfAttendanceRequest,
+  type ResolveActionRequest,
   type ErrorCode,
   type JoinTripRequest,
   type ListMessagesQuery,
@@ -115,6 +127,11 @@ async function request<T extends z.ZodType>(
 
 const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
 const patch = (body: unknown): RequestInit => ({ method: 'PATCH', body: JSON.stringify(body) });
+const put = (body: unknown): RequestInit => ({ method: 'PUT', body: JSON.stringify(body) });
+const del = (body: unknown): RequestInit => ({ method: 'DELETE', body: JSON.stringify(body) });
+
+/** Every domain write carries both of these. */
+export type Envelope = { idempotency_key: string; expected_calendar_version: string };
 
 /**
  * Request bodies are typed against the shared contracts. The server parses with
@@ -157,4 +174,45 @@ export const api = {
 
   patchTrip: (tripId: string, body: PatchTripRequest) =>
     request(`/api/trips/${tripId}`, tripMutationResponse, patch(body)),
+
+  createEvent: (tripId: string, body: CreateEventRequest) =>
+    request(`/api/trips/${tripId}/events`, eventMutationResponse, json(body)),
+
+  patchEvent: (tripId: string, eventId: string, body: PatchEventRequest) =>
+    request(`/api/trips/${tripId}/events/${eventId}`, eventMutationResponse, patch(body)),
+
+  deleteEvent: (tripId: string, eventId: string, body: Envelope) =>
+    request(`/api/trips/${tripId}/events/${eventId}`, deleteEventResponse, del(body)),
+
+  restoreEvent: (tripId: string, eventId: string, body: Envelope) =>
+    request(
+      `/api/trips/${tripId}/events/${eventId}/restore`,
+      eventMutationResponse,
+      json({ ...body, tombstone_id: null }),
+    ),
+
+  setSelfAttendance: (tripId: string, eventId: string, body: PutSelfAttendanceRequest) =>
+    request(
+      `/api/trips/${tripId}/events/${eventId}/attendance/me`,
+      attendanceMutationResponse,
+      put(body),
+    ),
+
+  patchPlace: (tripId: string, placeId: string, body: PatchPlaceRequest) =>
+    request(`/api/trips/${tripId}/places/${placeId}`, placeMutationResponse, patch(body)),
+
+  deletions: (tripId: string, params: { cursor?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    for (const [name, value] of Object.entries(params)) {
+      if (value !== undefined) query.set(name, String(value));
+    }
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
+    return request(`/api/trips/${tripId}/deletions${suffix}`, listDeletedEventsResponse);
+  },
+
+  requestProcessing: (tripId: string, body: { idempotency_key: string }) =>
+    request(`/api/trips/${tripId}/process`, requestProcessingResponse, json(body)),
+
+  resolveAction: (tripId: string, actionId: string, body: ResolveActionRequest) =>
+    request(`/api/trips/${tripId}/actions/${actionId}`, resolveActionResponse, json(body)),
 };

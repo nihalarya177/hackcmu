@@ -12,7 +12,8 @@
       "@trip/contracts": ["../packages/contracts/src/index.ts"],
       "@trip/db": ["../packages/db/src/index.ts"],
       "@trip/server": ["../apps/server/src/index.ts"]
-    }
+    },
+    "lib": ["ES2023", "DOM"]
   },
   "include": ["**/*.ts"]
 }

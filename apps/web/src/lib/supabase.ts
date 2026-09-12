@@ -36,17 +36,16 @@ export async function accessToken(): Promise<string | null> {
 }
 
 /**
- * Forces a refresh and returns the new token.
+ * Re-reads the session, letting the SDK refresh it if it needs to.
  *
- * An access token lasts an hour, and `getSession` hands back whatever is
- * current at the moment it is asked. A token read just before it expires can
- * still be expired by the time the server asks the auth provider to verify it,
- * which comes back as a 401 for a session that is otherwise perfectly valid.
- * This is how that is recovered from, rather than showing the user an error
- * for a race they did nothing to cause.
+ * Deliberately not `refreshSession()`. Refresh tokens rotate, so an explicit
+ * refresh can present one the background auto-refresh has already consumed;
+ * that fails, and the SDK then deletes the session. For an anonymous identity
+ * that is unrecoverable — a new identity is not a member of anything, and the
+ * trip becomes permanently unreachable. `getSession` refreshes only when it
+ * must and serialises concurrent callers.
  */
-export async function refreshAccessToken(): Promise<string | null> {
-  const { data, error } = await supabase().auth.refreshSession();
-  if (error !== null) return null;
+export async function currentAccessToken(): Promise<string | null> {
+  const { data } = await supabase().auth.getSession();
   return data.session?.access_token ?? null;
 }

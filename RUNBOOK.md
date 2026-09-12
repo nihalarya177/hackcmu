@@ -92,6 +92,11 @@ Runs formatting, lint, strict typecheck, unit tests, real-Postgres integration
 tests, the production build and Playwright. A check that cannot run is reported
 as a failure, never as a pass.
 
+The Playwright suite signs in anonymously for each test, so running it
+repeatedly within an hour can exhaust Supabase's anonymous sign-in quota and
+fail with "Request rate limit reached". That is the provider's limit, not a
+defect; wait and re-run.
+
 The live provider tests are kept out of that run because they cost real
 requests:
 
@@ -109,3 +114,5 @@ TEST_DATABASE_URL=… npx vitest run --project integration extractionLive
 | A venue stays "no location yet" | `PLACES_ENABLED=true` and a Geoapify key are needed; otherwise correct it by hand from the event panel. |
 | Chat or calendar looks stale | Realtime is a hint only; everything re-reads every five seconds regardless. |
 | An edit is refused as stale | Somebody else moved first. The view refreshes and your draft is kept. |
+| "Request rate limit reached" on startup | Supabase caps anonymous sign-ins per hour per IP. Every fresh browser profile, incognito window and E2E run burns one. Wait, or reuse an existing profile. |
+| "This browser is no longer part of that trip" | Membership belongs to the browser that joined; clearing site data creates a new anonymous identity. Open the invite link again to rejoin. |

@@ -18,7 +18,13 @@ type View = 'calendar' | 'map';
  * the right. Talking is the primary action, and the plan is what falls out of
  * it, so the two are always on screen together on a wide display.
  */
-export function Planner({ tripId }: { tripId: string }): React.ReactElement {
+export function Planner({
+  tripId,
+  onUnreachable,
+}: {
+  tripId: string;
+  onUnreachable: () => void;
+}): React.ReactElement {
   const snapshot = useSnapshot(tripId);
   const messages = useMessages(tripId);
   const refresh = useRefresh(tripId);
@@ -52,18 +58,46 @@ export function Planner({ tripId }: { tripId: string }): React.ReactElement {
     return <Centered>Loading the trip…</Centered>;
   }
   if (snapshot.isError || snapshot.data === undefined) {
+    // A nonmember is told the trip does not exist, so this is also what a
+    // browser that lost its anonymous identity sees. Retrying can never help:
+    // the identity that joined is gone. Send them back rather than stranding
+    // them on a button that will fail forever.
+    const unreachable =
+      snapshot.error instanceof ApiRequestError && snapshot.error.code === 'NOT_FOUND';
+
     return (
       <Centered>
-        <p className="text-sm text-red-800">
-          {snapshot.error instanceof Error ? snapshot.error.message : 'Could not load the trip.'}
-        </p>
-        <button
-          type="button"
-          onClick={() => void snapshot.refetch()}
-          className="mt-3 rounded-lg bg-stone-800 px-3.5 py-2 text-sm text-white"
-        >
-          Try again
-        </button>
+        {unreachable ? (
+          <>
+            <p className="text-sm text-stone-700">This browser is no longer part of that trip.</p>
+            <p className="mt-1 text-sm text-stone-500">
+              Membership belongs to the browser that joined. If you cleared site data, or this is a
+              different browser or device, open the invite link again to rejoin.
+            </p>
+            <button
+              type="button"
+              onClick={onUnreachable}
+              className="mt-4 rounded-lg bg-stone-800 px-3.5 py-2 text-sm text-white"
+            >
+              Start over
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-red-800">
+              {snapshot.error instanceof Error
+                ? snapshot.error.message
+                : 'Could not load the trip.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void snapshot.refetch()}
+              className="mt-3 rounded-lg bg-stone-800 px-3.5 py-2 text-sm text-white"
+            >
+              Try again
+            </button>
+          </>
+        )}
       </Centered>
     );
   }

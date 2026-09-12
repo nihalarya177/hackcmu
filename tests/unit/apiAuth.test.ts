@@ -4,7 +4,7 @@ const tokens = { current: 'stale-token', refreshed: 'fresh-token' };
 
 vi.mock('../../apps/web/src/lib/supabase', () => ({
   accessToken: () => Promise.resolve(tokens.current),
-  refreshAccessToken: () => Promise.resolve(tokens.refreshed),
+  currentAccessToken: () => Promise.resolve(tokens.refreshed),
   supabase: () => {
     throw new Error('not used in this test');
   },
@@ -110,6 +110,23 @@ describe('expired access tokens', () => {
     const result = await api.snapshot('11111111-1111-4111-8111-111111111111');
     expect(result.calendar_version).toBe('1');
     expect(calls.map((call) => call.token)).toEqual(['Bearer stale-token', 'Bearer fresh-token']);
+  });
+
+  it('does not retry when the session has not moved on', async () => {
+    // The same token coming back means this is a real authentication failure,
+    // not a token that expired in flight.
+    tokens.refreshed = 'stale-token';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init: RequestInit) => {
+        calls.push({ token: new Headers(init.headers).get('authorization') });
+        return Promise.resolve(jsonResponse(401, unauthorized));
+      }),
+    );
+
+    await api.snapshot('11111111-1111-4111-8111-111111111111').catch(() => undefined);
+    expect(calls).toHaveLength(1);
+    tokens.refreshed = 'fresh-token';
   });
 
   it('gives up after one retry rather than looping', async () => {

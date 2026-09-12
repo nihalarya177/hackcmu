@@ -33,7 +33,7 @@ import {
   type PatchSelfPersonRequest,
   type PatchTripRequest,
 } from '@trip/contracts';
-import { accessToken, refreshAccessToken } from './supabase';
+import { accessToken, currentAccessToken } from './supabase';
 import { loadBrowserConfig } from '../config/env';
 
 /** A failure the UI can branch on without parsing prose. */
@@ -72,14 +72,17 @@ async function request<T extends z.ZodType>(
   schema: T,
   init: RequestInit = {},
 ): Promise<z.infer<T>> {
-  const first = await send(path, init, await accessToken());
+  const used = await accessToken();
+  const first = await send(path, init, used);
 
-  // A token can expire between being read here and being verified there. That
-  // is a stale token, not a missing session, so it is refreshed and the call
-  // is made once more before anyone is told they are signed out.
+  // A token can expire between being read here and being verified there. Ask
+  // for the session again — the SDK refreshes it if it has to — and only
+  // repeat the call if that produced a genuinely different token.
   if (first.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed !== null) return parse(path, schema, await send(path, init, refreshed));
+    const current = await currentAccessToken();
+    if (current !== null && current !== used) {
+      return parse(path, schema, await send(path, init, current));
+    }
   }
   return parse(path, schema, first);
 }

@@ -61,7 +61,20 @@ export function App(): React.ReactElement {
     );
   }
 
-  return tripId === null ? <Start onTrip={open} /> : <Planner tripId={tripId} />;
+  const forget = (): void => {
+    try {
+      localStorage.removeItem(TRIP_KEY);
+    } catch {
+      // Nothing to clean up if storage is unavailable.
+    }
+    setTripId(null);
+  };
+
+  return tripId === null ? (
+    <Start onTrip={open} />
+  ) : (
+    <Planner tripId={tripId} onUnreachable={forget} />
+  );
 }
 
 function remembered(): string | null {

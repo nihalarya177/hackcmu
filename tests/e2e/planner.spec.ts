@@ -122,3 +122,30 @@ test('an event nobody attends leaves the calendar and can be put back', async ({
 
   await context.close();
 });
+
+test('a browser that lost its identity is sent back, not stranded', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await openApp(context);
+  await createTrip(page, 'Ada');
+
+  // Losing the anonymous session is exactly what clearing site data does, and
+  // the remembered trip id outlives it.
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('sb-')) localStorage.removeItem(key);
+    }
+  });
+  await page.reload();
+
+  await expect(page.getByText('This browser is no longer part of that trip.')).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole('button', { name: 'Start over' }).click();
+
+  // Back to a usable app rather than a retry button that can never succeed.
+  await expect(page.getByRole('heading', { name: 'Plan a trip together' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Plan a trip together' })).toBeVisible();
+
+  await context.close();
+});

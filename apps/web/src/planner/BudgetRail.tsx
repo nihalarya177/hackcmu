@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import type { SnapshotResponse } from '@trip/contracts';
 import { api } from '../lib/api';
-import { commandKey, initials, money } from './format';
+import { Avatar } from './Avatar';
+import { commandKey, money } from './format';
 
 /**
  * Who is on the trip and what each of them has committed.
  *
- * Compact by design: this is context for the conversation, not the subject of
- * the screen. Only your own budget is editable, because only your own is yours.
+ * A row of people rather than a stack of cards: the colour and the initials
+ * are the same ones used in the conversation and on the calendar, so this
+ * reads as the same three people, not a separate widget.
  */
 export function BudgetRail({
   snapshot,
@@ -19,54 +21,39 @@ export function BudgetRail({
   onError: (error: unknown) => void;
 }): React.ReactElement {
   return (
-    <ul className="flex gap-2 overflow-x-auto pb-1">
+    <ul className="flex min-w-0 gap-6 overflow-x-auto">
       {snapshot.members.map((person) => {
         const budget = snapshot.budgets.find((row) => row.person_id === person.id);
         if (budget === undefined) return null;
         const isSelf = person.id === snapshot.self_person_id;
+        const over = budget.status === 'over';
 
         return (
-          <li
-            key={person.id}
-            className={`flex w-40 shrink-0 items-center gap-2 rounded-xl border px-2.5 py-2 ${
-              budget.status === 'over' ? 'border-red-200 bg-red-50' : 'border-stone-200 bg-white'
-            }`}
-          >
-            <span
-              aria-hidden
-              className="grid size-7 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white"
-              style={{ backgroundColor: person.color }}
-            >
-              {initials(person.display_name)}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-stone-800">
-                {person.display_name}
-                {isSelf && <span className="ml-1 text-stone-400">you</span>}
-              </span>
+          <li key={person.id} className="flex shrink-0 items-center gap-2.5">
+            <Avatar name={person.display_name} color={person.color} size={34} />
+            <div className="leading-tight">
+              <p className="text-xs font-bold text-ink">{isSelf ? 'You' : person.display_name}</p>
               {isSelf ? (
                 <SelfBudget
                   key={budget.budget_cents}
                   snapshot={snapshot}
                   current={budget.budget_cents}
                   spent={budget.known_spend_cents}
-                  over={budget.status === 'over'}
+                  over={over}
                   onChanged={onChanged}
                   onError={onError}
                 />
               ) : (
-                <span
-                  className={`block text-[11px] ${budget.status === 'over' ? 'font-semibold text-red-700' : 'text-stone-500'}`}
-                >
+                <p className={`text-xs tnum ${over ? 'font-semibold text-alarm' : 'text-muted'}`}>
                   {money(budget.known_spend_cents)} of {money(budget.budget_cents)}
-                </span>
+                </p>
               )}
               {budget.unknown_price_event_count > 0 && (
-                <span className="block text-[10px] text-stone-400">
-                  +{budget.unknown_price_event_count} unpriced
-                </span>
+                <p className="text-[10px] text-faint">
+                  {budget.unknown_price_event_count} unpriced
+                </p>
               )}
-            </span>
+            </div>
           </li>
         );
       })}
@@ -110,9 +97,7 @@ function SelfBudget({
   };
 
   return (
-    <span
-      className={`flex items-baseline gap-0.5 text-[11px] ${over ? 'text-red-700' : 'text-stone-500'}`}
-    >
+    <p className={`flex items-baseline gap-0.5 text-xs tnum ${over ? 'text-alarm' : 'text-muted'}`}>
       <span className={over ? 'font-semibold' : undefined}>{money(spent)}</span>
       <span>of $</span>
       <input
@@ -127,8 +112,8 @@ function SelfBudget({
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur();
         }}
-        className="w-12 border-b border-dashed border-stone-400 bg-transparent text-[11px] focus:outline-none disabled:opacity-50"
+        className="w-11 border-b border-dashed border-faint bg-transparent focus:outline-none disabled:opacity-50"
       />
-    </span>
+    </p>
   );
 }

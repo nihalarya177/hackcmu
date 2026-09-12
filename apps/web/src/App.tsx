@@ -53,8 +53,8 @@ export function App(): React.ReactElement {
   if (session.state === 'error') {
     return (
       <Notice>
-        <p className="text-red-800">{session.message}</p>
-        <p className="mt-2 text-stone-500">
+        <p className="text-alarm-ink">{session.message}</p>
+        <p className="mt-2 text-muted">
           The app needs its Supabase configuration and a reachable API.
         </p>
       </Notice>
@@ -87,8 +87,8 @@ function remembered(): string | null {
 
 function Notice({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <main className="grid min-h-screen place-items-center bg-stone-50 p-6">
-      <div className="max-w-sm text-center text-sm text-stone-600">{children}</div>
+    <main className="grid min-h-screen place-items-center bg-ground p-6">
+      <div className="max-w-sm text-center text-sm text-muted">{children}</div>
     </main>
   );
 }

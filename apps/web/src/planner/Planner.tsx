@@ -1,5 +1,13 @@
 import { useCallback, useState } from 'react';
-import { CalendarDays, Download, History, Link2, Map as MapIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  Download,
+  History,
+  Link2,
+  Map as MapIcon,
+  Plus,
+  TriangleAlert,
+} from 'lucide-react';
 import type { SnapshotResponse } from '@trip/contracts';
 import { ApiRequestError, api } from '../lib/api';
 import { BudgetRail } from './BudgetRail';
@@ -8,7 +16,8 @@ import { EventDetail, type EventTarget, describeWarning } from './EventDetail';
 import { PlanCalendar } from './PlanCalendar';
 import { PlanMap } from './PlanMap';
 import { ActionNotices, ProcessingNote, UpdatePlanButton } from './Processing';
-import { clock, commandKey, dayLabel, initials } from './format';
+import { AvatarRow } from './Avatar';
+import { clock, commandKey, dayLabel } from './format';
 import { useMessages, useRefresh, useSnapshot, useTripRealtime } from './queries';
 
 type View = 'calendar' | 'map';
@@ -69,15 +78,17 @@ export function Planner({
       <Centered>
         {unreachable ? (
           <>
-            <p className="text-sm text-stone-700">This browser is no longer part of that trip.</p>
-            <p className="mt-1 text-sm text-stone-500">
+            <p className="text-sm font-semibold text-ink">
+              This browser is no longer part of that trip.
+            </p>
+            <p className="mt-1 text-sm text-muted">
               Membership belongs to the browser that joined. If you cleared site data, or this is a
               different browser or device, open the invite link again to rejoin.
             </p>
             <button
               type="button"
               onClick={onUnreachable}
-              className="mt-4 rounded-lg bg-stone-800 px-3.5 py-2 text-sm text-white"
+              className="mt-4 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white"
             >
               Start over
             </button>
@@ -92,7 +103,7 @@ export function Planner({
             <button
               type="button"
               onClick={() => void snapshot.refetch()}
-              className="mt-3 rounded-lg bg-stone-800 px-3.5 py-2 text-sm text-white"
+              className="mt-3 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white"
             >
               Try again
             </button>
@@ -105,78 +116,85 @@ export function Planner({
   const data = snapshot.data;
 
   return (
-    <div className="flex h-screen flex-col bg-stone-50">
+    <div className="flex h-screen flex-col overflow-hidden bg-ground text-ink">
       <TopBar snapshot={data} onError={onError} />
 
-      <div className="border-b border-stone-200 bg-stone-50 px-4 py-2">
-        <BudgetRail snapshot={data} onChanged={onChanged} onError={onError} />
-      </div>
-
-      {notice !== null && (
-        <p className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-900">
-          {notice}
-        </p>
-      )}
-
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <section className="flex min-h-0 flex-1 flex-col border-stone-200 px-4 pb-3 md:max-w-[46%] md:border-r">
-          <Conversation
-            snapshot={data}
-            messages={messages.data}
-            loading={messages.isPending}
-            draft={draft}
-            onDraft={setDraft}
-            onChanged={onChanged}
-            onError={onError}
-          />
+      <div className="flex min-h-0 flex-1 gap-3.5 px-4.5 pb-4.5 md:flex-row max-md:flex-col">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[22px] bg-surface md:w-[430px] md:shrink-0">
+          <div className="flex min-h-0 flex-1 flex-col px-5 pt-5 pb-4">
+            <Conversation
+              snapshot={data}
+              messages={messages.data}
+              loading={messages.isPending}
+              draft={draft}
+              onDraft={setDraft}
+              onChanged={onChanged}
+              onError={onError}
+            />
+          </div>
         </section>
 
-        <section className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-2 pb-3">
-          <div className="flex items-center gap-1">
-            <UpdatePlanButton snapshot={data} onChanged={onChanged} onError={onError} />
-            <span className="mx-1 h-4 w-px bg-stone-200" />
-            <ViewTab
-              active={view === 'calendar'}
-              onClick={() => setView('calendar')}
-              icon={CalendarDays}
-            >
-              Calendar
-            </ViewTab>
-            <ViewTab active={view === 'map'} onClick={() => setView('map')} icon={MapIcon}>
-              Map
-            </ViewTab>
-            <ExportButton snapshot={data} />
-            {data.recent_deletions.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowHistory((value) => !value)}
-                aria-pressed={showHistory}
-                className="ml-auto flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-stone-500 hover:bg-stone-100"
-              >
-                <History aria-hidden className="size-3.5" />
-                Removed ({data.recent_deletions.length})
-              </button>
-            )}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <div className="flex shrink-0 items-center gap-5 rounded-[22px] bg-surface px-4.5 py-3">
+            <BudgetRail snapshot={data} onChanged={onChanged} onError={onError} />
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <UpdatePlanButton snapshot={data} onChanged={onChanged} onError={onError} />
+            </div>
           </div>
+
+          <Alerts snapshot={data} notice={notice} onChanged={onChanged} onError={onError} />
 
           {showHistory && <RemovedList snapshot={data} onChanged={onChanged} onError={onError} />}
 
-          <ProcessingNote snapshot={data} onChanged={onChanged} onError={onError} />
-          <ActionNotices snapshot={data} onChanged={onChanged} onError={onError} />
-          <Warnings snapshot={data} />
+          <div className="flex min-h-0 flex-1 flex-col rounded-[22px] bg-surface px-4.5 py-4">
+            <div className="mb-3.5 flex shrink-0 items-center gap-1.5">
+              <ViewTab
+                active={view === 'calendar'}
+                onClick={() => setView('calendar')}
+                icon={CalendarDays}
+              >
+                Calendar
+              </ViewTab>
+              <ViewTab active={view === 'map'} onClick={() => setView('map')} icon={MapIcon}>
+                Map
+              </ViewTab>
+              <div className="flex-grow" />
+              {data.recent_deletions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowHistory((value) => !value)}
+                  aria-pressed={showHistory}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-muted hover:bg-sunken"
+                >
+                  <History aria-hidden className="size-3.5" />
+                  Removed
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setTarget({ kind: 'new', date: data.trip.dates[0] ?? '', startMinute: 600 })
+                }
+                className="flex items-center gap-1.5 rounded-full bg-sunken px-3.5 py-1.5 text-[13px] font-semibold"
+              >
+                <Plus aria-hidden className="size-3.5" />
+                Add event
+              </button>
+            </div>
 
-          {view === 'calendar' ? (
-            <PlanCalendar
-              snapshot={data}
-              onOpenEvent={(eventId) => setTarget({ kind: 'existing', eventId })}
-              onPickSlot={(date, startMinute) => setTarget({ kind: 'new', date, startMinute })}
-            />
-          ) : (
-            <PlanMap
-              snapshot={data}
-              onOpenEvent={(eventId) => setTarget({ kind: 'existing', eventId })}
-            />
-          )}
+            {view === 'calendar' ? (
+              <PlanCalendar
+                snapshot={data}
+                onOpenEvent={(eventId) => setTarget({ kind: 'existing', eventId })}
+                onPickSlot={(date, startMinute) => setTarget({ kind: 'new', date, startMinute })}
+              />
+            ) : (
+              <PlanMap
+                snapshot={data}
+                onOpenEvent={(eventId) => setTarget({ kind: 'existing', eventId })}
+              />
+            )}
+          </div>
         </section>
       </div>
 
@@ -210,81 +228,112 @@ function TopBar({
         const url = `${window.location.origin}/?invite=${result.invite.token}`;
         void navigator.clipboard.writeText(url).then(
           () => setCopied(true),
-          // The link is still minted; say so rather than pretending it copied.
+          // The link is minted either way; say what it is rather than fail.
           () => onError(new Error(`Invite link: ${url}`)),
         );
       }, onError);
   };
 
   return (
-    <header className="flex items-center gap-3 border-b border-stone-200 bg-white px-4 py-2.5">
-      <div className="min-w-0">
-        <h1 className="truncate text-sm font-semibold text-stone-900">{snapshot.trip.trip_name}</h1>
-        <p className="truncate text-[11px] text-stone-500">
-          {snapshot.trip.destination_label} · {dayLabel(snapshot.trip.start_date)} –{' '}
-          {dayLabel(snapshot.trip.end_date)}
+    <header className="flex shrink-0 items-center gap-4 px-4.5 py-3.5">
+      <div className="flex min-w-0 items-baseline gap-2.5">
+        <h1 className="truncate text-xl font-extrabold tracking-tight">
+          {snapshot.trip.trip_name}
+        </h1>
+        <p className="hidden shrink-0 text-[13px] font-medium text-muted sm:block">
+          {dayLabel(snapshot.trip.start_date)} to {dayLabel(snapshot.trip.end_date)}
         </p>
       </div>
 
-      <ul className="ml-auto flex -space-x-1.5">
-        {snapshot.members.map((person) => (
-          <li
-            key={person.id}
-            title={person.display_name}
-            className="grid size-7 place-items-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
-            style={{ backgroundColor: person.color }}
+      <div className="ml-auto flex shrink-0 items-center gap-2.5">
+        <AvatarRow people={snapshot.members} size={30} ring="#f4f3f7" label="Members" />
+        {isCreator && (
+          <button
+            type="button"
+            onClick={share}
+            className="flex items-center gap-1.5 rounded-full bg-surface px-4 py-2.5 text-[13px] font-semibold"
           >
-            {initials(person.display_name)}
-          </li>
-        ))}
-      </ul>
-
-      {isCreator && (
-        <button
-          type="button"
-          onClick={share}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
+            <Link2 aria-hidden className="size-[15px]" />
+            {copied ? 'Link copied' : 'Invite link'}
+          </button>
+        )}
+        <a
+          href={`/api/trips/${snapshot.trip.id}/export.ics`}
+          className="flex items-center gap-1.5 rounded-full bg-surface px-4 py-2.5 text-[13px] font-semibold text-ink"
         >
-          <Link2 aria-hidden className="size-3.5" />
-          {copied ? 'Link copied' : 'Invite'}
-        </button>
-      )}
+          <Download aria-hidden className="size-[15px]" />
+          Export itinerary
+        </a>
+      </div>
     </header>
   );
 }
 
 /**
- * Your own calendar, as a real file. The server decides what is yours: the
- * link is the same for everyone, and each person gets their own plan.
+ * Warnings, and anything the last action needs to say, on one shelf.
+ *
+ * They stack: a trip can be over budget, double booked and short of travel
+ * time at once, and a badge in a corner can only ever show one of those.
  */
-function ExportButton({ snapshot }: { snapshot: SnapshotResponse }): React.ReactElement {
-  return (
-    <a
-      href={`/api/trips/${snapshot.trip.id}/export.ics`}
-      className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
-    >
-      <Download aria-hidden className="size-3.5" />
-      My calendar
-    </a>
+function Alerts({
+  snapshot,
+  notice,
+  onChanged,
+  onError,
+}: {
+  snapshot: SnapshotResponse;
+  notice: string | null;
+  onChanged: () => void;
+  onError: (error: unknown) => void;
+}): React.ReactElement | null {
+  const [expanded, setExpanded] = useState(false);
+  const names = new Map(
+    snapshot.members.map((person) => [
+      person.id,
+      person.id === snapshot.self_person_id ? 'You' : person.display_name,
+    ]),
   );
-}
-
-function Warnings({ snapshot }: { snapshot: SnapshotResponse }): React.ReactElement | null {
-  const names = new Map(snapshot.members.map((person) => [person.id, person.display_name]));
   const active = snapshot.warnings.filter((warning) => warning.active);
-  if (active.length === 0) return null;
+  const pendingActions = snapshot.actions.filter((action) => action.status === 'pending');
+
+  const quiet =
+    snapshot.processing.state === 'idle' ||
+    snapshot.processing.state === 'queued' ||
+    snapshot.processing.state === 'running';
+  if (active.length === 0 && notice === null && pendingActions.length === 0 && quiet) {
+    return null;
+  }
+
+  const shown = expanded ? active : active.slice(0, 2);
+  const hidden = active.length - shown.length;
 
   return (
-    <ul className="grid gap-1">
-      {active.slice(0, 4).map((warning) => (
-        <li
-          key={warning.key}
-          className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900"
-        >
-          {describeWarning(warning, names, snapshot)}
-        </li>
-      ))}
-    </ul>
+    <div className="flex shrink-0 flex-col gap-2">
+      {(active.length > 0 || notice !== null) && (
+        <div className="flex flex-col gap-2 rounded-[18px] bg-alarm-surface px-4 py-3">
+          {notice !== null && <p className="text-[13px] leading-snug text-alarm-ink">{notice}</p>}
+          {shown.map((warning) => (
+            <p key={warning.key} className="flex items-start gap-2.5">
+              <TriangleAlert aria-hidden className="mt-px size-[15px] shrink-0 text-alarm" />
+              <span className="text-[13px] leading-snug text-alarm-ink">
+                {describeWarning(warning, names, snapshot)}
+              </span>
+            </p>
+          ))}
+          {hidden > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="self-start pl-[25px] text-[13px] text-alarm-ink/75 underline"
+            >
+              {hidden} more
+            </button>
+          )}
+        </div>
+      )}
+      <ProcessingNote snapshot={snapshot} onChanged={onChanged} onError={onError} />
+      <ActionNotices snapshot={snapshot} onChanged={onChanged} onError={onError} />
+    </div>
   );
 }
 
@@ -311,12 +360,12 @@ function RemovedList({
   };
 
   return (
-    <ul className="grid gap-1 rounded-xl border border-stone-200 bg-white p-2">
+    <ul className="grid shrink-0 gap-1 rounded-[18px] bg-surface px-4 py-3">
       {snapshot.recent_deletions.map((removed) => (
         <li key={removed.event_id} className="flex items-center gap-2 text-[11px]">
-          <span className="min-w-0 flex-1 truncate text-stone-700">
+          <span className="min-w-0 flex-1 truncate text-muted">
             {removed.label}
-            <span className="text-stone-400">
+            <span className="text-faint">
               {' '}
               · {dayLabel(removed.local_date)} {clock(removed.start_minute)}
               {removed.reason === 'auto_zero_attendance' && ' · nobody was going'}
@@ -326,7 +375,7 @@ function RemovedList({
             type="button"
             disabled={busy === removed.event_id}
             onClick={() => restore(removed.event_id)}
-            className="shrink-0 text-stone-700 underline disabled:opacity-50"
+            className="shrink-0 font-semibold text-ink underline disabled:opacity-50"
           >
             Put back
           </button>
@@ -352,8 +401,8 @@ function ViewTab({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-        active ? 'bg-stone-800 text-white' : 'text-stone-600 hover:bg-stone-100'
+      className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition ${
+        active ? 'bg-sunken text-ink' : 'text-muted hover:bg-sunken/60'
       }`}
     >
       <Icon aria-hidden className="size-3.5" />
@@ -364,8 +413,8 @@ function ViewTab({
 
 function Centered({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <div className="grid h-screen place-items-center bg-stone-50 p-6 text-center">
-      <div className="text-sm text-stone-500">{children}</div>
+    <div className="grid h-screen place-items-center bg-ground p-6 text-center">
+      <div className="text-sm text-muted">{children}</div>
     </div>
   );
 }

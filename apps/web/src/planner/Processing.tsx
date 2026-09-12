@@ -49,12 +49,12 @@ export function UpdatePlanButton({
           ? 'No planning worker is running, so the conversation cannot be read right now.'
           : undefined
       }
-      className="flex items-center gap-1.5 rounded-lg bg-stone-800 px-2.5 py-1 text-xs font-medium text-white transition disabled:bg-stone-300"
+      className="flex items-center gap-1.5 rounded-lg bg-ink px-2.5 py-1 text-xs font-medium text-white transition disabled:bg-faint"
     >
       <Sparkles aria-hidden className={`size-3.5 ${running ? 'animate-pulse' : ''}`} />
       {running ? 'Reading…' : 'Update plan'}
       {!running && pending > 0 && !unavailable && (
-        <span className="rounded-full bg-white/20 px-1.5 text-[10px]">{pending}</span>
+        <span className="rounded-full bg-surface/20 px-1.5 text-[10px]">{pending}</span>
       )}
     </button>
   );
@@ -156,9 +156,9 @@ export function ActionNotices({
       {pending.map((action) => (
         <li
           key={action.id}
-          className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-hairline bg-surface px-2.5 py-1.5 text-xs"
         >
-          <span className="text-stone-700">{describe(action, snapshot)}</span>
+          <span className="text-ink">{describe(action, snapshot)}</span>
           <span className="ml-auto flex gap-1.5">
             {action.available_choices.map((choice) => (
               <button
@@ -167,9 +167,7 @@ export function ActionNotices({
                 disabled={busy === action.id}
                 onClick={() => resolve(action, choice)}
                 className={`rounded-md px-2.5 py-1 font-medium disabled:opacity-50 ${
-                  choice === 'remove'
-                    ? 'bg-red-700 text-white'
-                    : 'border border-stone-300 text-stone-800'
+                  choice === 'remove' ? 'bg-red-700 text-white' : 'border border-hairline text-ink'
                 }`}
               >
                 {CHOICE_LABELS[choice]}
@@ -203,8 +201,8 @@ function Note({
     <p
       className={`rounded-lg px-2.5 py-1.5 text-[11px] ${
         tone === 'bad'
-          ? 'border border-red-200 bg-red-50 text-red-800'
-          : 'bg-stone-100 text-stone-600'
+          ? 'border border-alarm/25 bg-alarm-surface text-alarm-ink'
+          : 'bg-sunken text-muted'
       }`}
     >
       {children}

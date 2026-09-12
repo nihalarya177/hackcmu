@@ -1,4 +1,29 @@
 @import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* One ground, one ink, and the greys between them. Nothing else is neutral. */
+  --color-ground: #f4f3f7;
+  --color-surface: #ffffff;
+  --color-sunken: #f2f1f6;
+  --color-ink: #1b1a20;
+  --color-muted: #76737f;
+  --color-faint: #9b98a5;
+  --color-hairline: #eceaf1;
+  /* Fainter still: the calendar grid is a backdrop, not a table. */
+  --color-grid: #f5f4f8;
+
+  --color-alarm: #c0392b;
+  --color-alarm-ink: #8c2e22;
+  --color-alarm-surface: #fff6f5;
+}
+
+/* Money and clock times are columns of figures; they must not jitter. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Only the fallback basemap needs this. The standard OpenStreetMap palette —
    red motorways, yellow A roads, strong greens — fights the member colours for
@@ -38,4 +63,81 @@
 }
 .leaflet-tooltip-top::before {
   border-top-color: rgb(255 255 255 / 0.95) !important;
+}
+
+/* FullCalendar ships a boxed, ruled table. The reference calendar is the
+   opposite: almost no grid, the blocks carry the structure. Everything below
+   removes chrome rather than adding any. */
+.fc {
+  --fc-border-color: transparent;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: transparent;
+  --fc-today-bg-color: transparent;
+}
+.fc .fc-scrollgrid,
+.fc .fc-scrollgrid td,
+.fc .fc-scrollgrid th {
+  border: 0;
+}
+/* One hairline per hour and nothing between the half hours. These selectors
+   have to out-specify the border reset above, which zeroes every grid cell. */
+.fc .fc-scrollgrid .fc-timegrid-slot {
+  height: 48px;
+  border-bottom: 1px solid var(--color-grid);
+}
+.fc .fc-scrollgrid .fc-timegrid-slot-minor {
+  border-bottom: 0;
+}
+/* A faint rule between days: enough to separate the columns, not enough to
+   read as a table. */
+.fc .fc-scrollgrid .fc-timegrid-col + .fc-timegrid-col,
+.fc .fc-scrollgrid .fc-col-header-cell + .fc-col-header-cell {
+  border-left: 1px solid var(--color-grid);
+}
+.fc .fc-scrollgrid .fc-col-header-cell {
+  border-bottom: 1px solid var(--color-hairline);
+}
+.fc .fc-timegrid-slot-label,
+.fc .fc-timegrid-axis {
+  border: 0;
+}
+.fc .fc-hour {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-faint);
+  vertical-align: top;
+  padding-right: 10px;
+}
+.fc .fc-day-head {
+  padding: 0 0 10px;
+  text-align: left;
+  vertical-align: bottom;
+}
+.fc .fc-col-header-cell-cushion {
+  padding: 0;
+}
+/* Blocks: the pastel fill and the ring come from the member's own colour. */
+.fc .fc-block {
+  border-radius: 14px;
+  border-width: 2px;
+  box-shadow: none;
+  overflow: hidden;
+}
+.fc .fc-timegrid-event {
+  box-shadow: none;
+}
+/* An overlapping block sits inset and lifted, so a collision reads as one. */
+.fc .fc-timegrid-event-harness-inset .fc-timegrid-event {
+  box-shadow: -3px 0 12px rgb(27 26 32 / 0.1);
+}
+.fc .fc-timegrid-now-indicator-line {
+  border-color: var(--color-alarm);
+  border-width: 1px;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  display: none;
+}
+.fc .fc-highlight {
+  background: var(--color-sunken);
+  border-radius: 12px;
 }

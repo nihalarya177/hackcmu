@@ -42,7 +42,7 @@ export function EventDetail({
   if (target.kind === 'existing' && existing === undefined) {
     return (
       <Panel title="That event is gone" onClose={onClose}>
-        <p className="text-sm text-stone-600">
+        <p className="text-sm text-muted">
           It was removed or changed while this was open. Close this and take another look.
         </p>
       </Panel>
@@ -131,8 +131,8 @@ function Attendance({
             onClick={() => choose(value)}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
               current === value
-                ? 'border-stone-800 bg-stone-800 text-white'
-                : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400'
+                ? 'border-ink bg-ink text-white'
+                : 'border-hairline bg-surface text-ink hover:border-muted'
             }`}
           >
             <Icon aria-hidden className="size-3.5" />
@@ -140,7 +140,7 @@ function Attendance({
           </button>
         ))}
       </div>
-      <p className="text-[11px] text-stone-500">
+      <p className="text-[11px] text-muted">
         If everyone leaves, the event comes off the calendar.
       </p>
     </div>
@@ -165,7 +165,7 @@ function Roster({
       {going.map((person) => (
         <li
           key={person.id}
-          className="flex items-center gap-1.5 rounded-full bg-stone-100 py-0.5 pr-2.5 pl-1.5 text-xs text-stone-700"
+          className="flex items-center gap-1.5 rounded-full bg-sunken py-0.5 pr-2.5 pl-1.5 text-xs text-ink"
         >
           <span
             aria-hidden
@@ -197,7 +197,7 @@ function Warnings({
       {relevant.map((warning) => (
         <li
           key={warning.key}
-          className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900"
+          className="rounded-lg border border-alarm/25 bg-alarm-surface px-2.5 py-1.5 text-[11px] text-alarm-ink"
         >
           {describeWarning(warning, names, snapshot)}
         </li>
@@ -356,7 +356,7 @@ function Fields({
   };
 
   return (
-    <form onSubmit={submit} className="grid gap-2.5 border-t border-stone-200 pt-3">
+    <form onSubmit={submit} className="grid gap-2.5 border-t border-hairline pt-3">
       <Field label="What">
         <input
           value={label}
@@ -429,17 +429,17 @@ function Fields({
       )}
 
       {existing?.schedule_locked_by_human === true && (
-        <p className="text-[11px] text-stone-500">
+        <p className="text-[11px] text-muted">
           A person set this time, so automatic planning will not move it.
         </p>
       )}
-      {problem !== null && <p className="text-xs text-red-700">{problem}</p>}
+      {problem !== null && <p className="text-xs text-alarm">{problem}</p>}
 
       <div className="flex items-center gap-2">
         <button
           type="submit"
           disabled={busy}
-          className="rounded-lg bg-stone-800 px-3.5 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-ink px-3.5 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {existing === undefined ? 'Add to plan' : 'Save'}
         </button>
@@ -449,7 +449,7 @@ function Fields({
             disabled={busy}
             onClick={remove}
             aria-label="Remove from plan"
-            className="ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-alarm hover:bg-alarm-surface disabled:opacity-50"
           >
             <Trash2 aria-hidden className="size-4" />
             Remove
@@ -461,7 +461,7 @@ function Fields({
 }
 
 const inputClass =
-  'w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm text-stone-900 focus:border-stone-500 focus:outline-none disabled:bg-stone-100 disabled:text-stone-500';
+  'w-full rounded-lg border border-hairline bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-muted focus:outline-none disabled:bg-sunken disabled:text-muted';
 
 function Field({
   label,
@@ -471,7 +471,7 @@ function Field({
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <label className="grid gap-1 text-[11px] font-medium tracking-wide text-stone-500 uppercase">
+    <label className="grid gap-1 text-[11px] font-medium text-muted">
       {label}
       {children}
     </label>
@@ -494,19 +494,19 @@ function Panel({
       role="dialog"
       aria-modal
       aria-label={title}
-      className="fixed inset-0 z-30 flex items-end justify-center bg-stone-900/25 p-3 sm:items-center"
+      className="fixed inset-0 z-30 flex items-end justify-center bg-ink/25 p-3 sm:items-center"
     >
-      <div className="grid max-h-[88vh] w-full max-w-md gap-3 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+      <div className="grid max-h-[88vh] w-full max-w-md gap-3 overflow-y-auto rounded-2xl bg-surface p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-stone-900">{title}</h2>
-            {subtitle !== undefined && <p className="text-xs text-stone-500">{subtitle}</p>}
+            <h2 className="text-base font-semibold text-ink">{title}</h2>
+            {subtitle !== undefined && <p className="text-xs text-muted">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid size-7 shrink-0 place-items-center rounded-full text-stone-400 hover:bg-stone-100"
+            className="grid size-7 shrink-0 place-items-center rounded-full text-faint hover:bg-sunken"
           >
             <X aria-hidden className="size-4" />
           </button>

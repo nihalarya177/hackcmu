@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUp } from 'lucide-react';
 import { TRIP_LIMITS, type ListMessagesResponse, type SnapshotResponse } from '@trip/contracts';
 import { api } from '../lib/api';
-import { initials, timeAgo } from './format';
+import { Avatar } from './Avatar';
+import { bubble } from './palette';
+import { timeAgo } from './format';
 
 /** A send that has not been acknowledged. Never drawn as though it had been. */
 type Pending = { nonce: string; body: string; failed: boolean };
@@ -36,6 +38,7 @@ export function Conversation({
   const bottom = useRef<HTMLDivElement>(null);
   const people = new Map(snapshot.members.map((person) => [person.id, person]));
   const rows = messages?.messages ?? [];
+  const selfColor = people.get(snapshot.self_person_id)?.color ?? '#2563eb';
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' });
@@ -74,14 +77,14 @@ export function Conversation({
       <div className="min-h-0 flex-1 overflow-y-auto px-1 py-2">
         {/* A short conversation sits at the bottom, the way a conversation
             does, and still scrolls normally once it outgrows the column. */}
-        <div className="flex min-h-full flex-col justify-end space-y-3">
+        <div className="flex min-h-full flex-col justify-end space-y-4">
           {loading && rows.length === 0 && (
-            <p className="py-8 text-center text-sm text-stone-400">Loading the conversation…</p>
+            <p className="py-8 text-center text-sm text-faint">Loading the conversation…</p>
           )}
           {!loading && rows.length === 0 && unsent.length === 0 && (
             <div className="py-10 text-center">
-              <p className="text-sm font-medium text-stone-700">Nothing said yet</p>
-              <p className="mt-1 text-sm text-stone-500">
+              <p className="text-sm font-bold text-ink">Nothing said yet</p>
+              <p className="mt-1 text-sm text-muted">
                 Talk about what you want to do. Anything you agree on can go straight onto the
                 calendar.
               </p>
@@ -95,15 +98,39 @@ export function Conversation({
             const previous = rows[index - 1];
             const grouped = previous?.author_person_id === author && previous.kind === message.kind;
 
+            // The planner reports what it did, so its line is shown as the
+            // thing it produced rather than as another voice in the room.
             if (message.kind !== 'user') {
+              return message.kind === 'bot' ? (
+                <div key={message.id} className="pl-11">
+                  <p className="rounded-[18px] bg-ink px-4 py-3 text-[13px] leading-snug text-white/85">
+                    {message.body}
+                  </p>
+                </div>
+              ) : (
+                <p key={message.id} className="px-6 py-1 text-center text-xs text-faint italic">
+                  {message.body}
+                </p>
+              );
+            }
+
+            // Everyone reads down one column. Your own lines are indented and
+            // filled in your colour rather than flipped to the other side, so
+            // the thread stays one conversation instead of two.
+            if (mine) {
               return (
-                <div key={message.id} className="px-6 py-1">
+                <div key={message.id} className="pl-11">
+                  {!grouped && (
+                    <p className="mb-1.5 text-[11px] font-bold" style={{ color: selfColor }}>
+                      You
+                      <span className="ml-1.5 font-medium text-faint">
+                        {timeAgo(message.created_at)}
+                      </span>
+                    </p>
+                  )}
                   <p
-                    className={`rounded-xl px-3 py-2 text-center text-xs ${
-                      message.kind === 'bot'
-                        ? 'bg-stone-100 text-stone-700'
-                        : 'text-stone-400 italic'
-                    }`}
+                    className="rounded-[18px] rounded-bl-[7px] px-4 py-2.5 text-sm leading-relaxed text-ink"
+                    style={{ backgroundColor: bubble(selfColor) }}
                   >
                     {message.body}
                   </p>
@@ -112,31 +139,27 @@ export function Conversation({
             }
 
             return (
-              <div
-                key={message.id}
-                className={`flex items-end gap-2 ${mine ? 'flex-row-reverse' : ''}`}
-              >
-                <span
-                  aria-hidden
-                  className={`grid size-7 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white ${grouped ? 'invisible' : ''}`}
-                  style={{ backgroundColor: person?.color ?? '#a8a29e' }}
-                >
-                  {initials(person?.display_name ?? '?')}
+              <div key={message.id} className="flex items-end gap-2.5">
+                <span className={grouped ? 'invisible' : undefined}>
+                  <Avatar
+                    name={person?.display_name ?? '?'}
+                    color={person?.color ?? '#9b98a5'}
+                    size={30}
+                  />
                 </span>
-                <div className={`max-w-[78%] ${mine ? 'text-right' : ''}`}>
+                <div className="min-w-0">
                   {!grouped && (
-                    <p className="mb-0.5 px-1 text-[11px] text-stone-500">
-                      {mine ? 'You' : (person?.display_name ?? 'Someone')} ·{' '}
-                      {timeAgo(message.created_at)}
+                    <p
+                      className="mb-1.5 text-[11px] font-bold"
+                      style={{ color: person?.color ?? undefined }}
+                    >
+                      {person?.display_name ?? 'Someone'}
+                      <span className="ml-1.5 font-medium text-faint">
+                        {timeAgo(message.created_at)}
+                      </span>
                     </p>
                   )}
-                  <p
-                    className={`inline-block rounded-2xl px-3.5 py-2 text-left text-sm leading-snug ${
-                      mine
-                        ? 'rounded-br-md bg-stone-800 text-white'
-                        : 'rounded-bl-md bg-stone-100 text-stone-800'
-                    }`}
-                  >
+                  <p className="rounded-[18px] rounded-bl-[7px] bg-sunken px-4 py-2.5 text-sm leading-relaxed text-ink">
                     {message.body}
                   </p>
                 </div>
@@ -145,36 +168,36 @@ export function Conversation({
           })}
 
           {unsent.map((row) => (
-            <div key={row.nonce} className="flex flex-row-reverse items-end gap-2">
-              <span aria-hidden className="size-7 shrink-0" />
-              <div className="max-w-[78%] text-right">
-                <p className="inline-block rounded-2xl rounded-br-md bg-stone-800/60 px-3.5 py-2 text-left text-sm text-white">
-                  {row.body}
-                </p>
-                <p className="px-1 text-[11px]">
-                  {row.failed ? (
-                    <span className="text-red-700">
-                      not sent
-                      <button
-                        type="button"
-                        onClick={() => send(row.body, row.nonce)}
-                        className="ml-1.5 underline"
-                      >
-                        retry
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="text-stone-400">sending…</span>
-                  )}
-                </p>
-              </div>
+            <div key={row.nonce} className="pl-11">
+              <p
+                className="rounded-[18px] rounded-bl-[7px] px-4 py-2.5 text-sm leading-relaxed text-ink opacity-55"
+                style={{ backgroundColor: bubble(selfColor) }}
+              >
+                {row.body}
+              </p>
+              <p className="mt-1 px-1 text-[11px]">
+                {row.failed ? (
+                  <span className="text-alarm">
+                    not sent
+                    <button
+                      type="button"
+                      onClick={() => send(row.body, row.nonce)}
+                      className="ml-1.5 underline"
+                    >
+                      retry
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-faint">sending…</span>
+                )}
+              </p>
             </div>
           ))}
           <div ref={bottom} />
         </div>
       </div>
 
-      <form onSubmit={submit} className="flex items-end gap-2 pt-2">
+      <form onSubmit={submit} className="flex items-end gap-2.5 pt-3">
         <textarea
           value={draft}
           onChange={(event) => onDraft(event.target.value)}
@@ -188,13 +211,13 @@ export function Conversation({
           maxLength={TRIP_LIMITS.maxMessageChars}
           placeholder="What should we do?"
           aria-label="Message"
-          className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-stone-300 bg-white px-4 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 focus:border-stone-500 focus:outline-none"
+          className="max-h-32 min-h-11 flex-1 resize-none rounded-full bg-ground px-5 py-3 text-sm text-ink placeholder:text-faint focus:outline-none"
         />
         <button
           type="submit"
           disabled={draft.trim().length === 0}
           aria-label="Send"
-          className="grid size-11 shrink-0 place-items-center rounded-full bg-stone-800 text-white transition disabled:bg-stone-300"
+          className="grid size-11 shrink-0 place-items-center rounded-full bg-ink text-white transition disabled:bg-faint"
         >
           <ArrowUp aria-hidden className="size-5" />
         </button>

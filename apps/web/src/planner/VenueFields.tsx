@@ -87,16 +87,12 @@ export function VenueFields({
 
   if (!open) {
     return (
-      <div className="flex items-center gap-2 rounded-lg bg-stone-50 px-2.5 py-2 text-[11px] text-stone-600">
+      <div className="flex items-center gap-2 rounded-lg bg-ground px-2.5 py-2 text-[11px] text-muted">
         <span className="min-w-0 flex-1 truncate">
           {place.label} · {place.coordinate === null ? 'location unknown' : 'located'} · {hours}
           {place.human_override && ' · corrected by a person'}
         </span>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="shrink-0 text-stone-700 underline"
-        >
+        <button type="button" onClick={() => setOpen(true)} className="shrink-0 text-ink underline">
           Correct
         </button>
       </div>
@@ -104,12 +100,12 @@ export function VenueFields({
   }
 
   return (
-    <div className="grid gap-2 rounded-lg bg-stone-50 p-2.5">
+    <div className="grid gap-2 rounded-lg bg-ground p-2.5">
       <div className="grid grid-cols-2 gap-2">
         <Small label="Latitude" value={lat} onChange={setLat} />
         <Small label="Longitude" value={lon} onChange={setLon} />
       </div>
-      <label className="flex items-center gap-2 text-[11px] text-stone-600">
+      <label className="flex items-center gap-2 text-[11px] text-muted">
         <input type="checkbox" checked={closed} onChange={(e) => setClosed(e.target.checked)} />
         Closed on {date}
       </label>
@@ -119,20 +115,20 @@ export function VenueFields({
           <Small label="Closes" value={shuts} onChange={setShuts} type="time" />
         </div>
       )}
-      {problem !== null && <p className="text-[11px] text-red-700">{problem}</p>}
+      {problem !== null && <p className="text-[11px] text-alarm">{problem}</p>}
       <div className="flex gap-2">
         <button
           type="button"
           disabled={busy}
           onClick={submit}
-          className="rounded-md bg-stone-800 px-2.5 py-1 text-[11px] text-white disabled:opacity-50"
+          className="rounded-md bg-ink px-2.5 py-1 text-[11px] text-white disabled:opacity-50"
         >
           Save correction
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-[11px] text-stone-600 underline"
+          className="text-[11px] text-muted underline"
         >
           Cancel
         </button>
@@ -153,13 +149,13 @@ function Small({
   type?: string;
 }): React.ReactElement {
   return (
-    <label className="grid gap-0.5 text-[10px] tracking-wide text-stone-500 uppercase">
+    <label className="grid gap-0.5 text-[10px] text-muted">
       {label}
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900"
+        className="rounded border border-hairline bg-surface px-2 py-1 text-xs text-ink"
       />
     </label>
   );

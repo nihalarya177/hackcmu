@@ -77,7 +77,7 @@ export function PlanMap({
   }, [selected]);
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl ring-1 ring-stone-200/70">
+    <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl ring-1 ring-hairline">
       <Canvas
         snapshot={snapshot}
         day={day}
@@ -88,7 +88,7 @@ export function PlanMap({
       />
 
       {/* Day selector, floating over the canvas. */}
-      <div className="pointer-events-auto absolute top-3 left-3 z-[500] flex gap-0.5 rounded-full bg-white/85 p-0.5 shadow-[0_2px_12px_rgb(0_0_0/0.10)] backdrop-blur">
+      <div className="pointer-events-auto absolute top-3 left-3 z-[500] flex gap-0.5 rounded-full bg-surface/85 p-0.5 shadow-[0_2px_12px_rgb(0_0_0/0.10)] backdrop-blur">
         {snapshot.trip.dates.map((value) => {
           const count = snapshot.day_paths.find((entry) => entry.date === value)?.nodes.length ?? 0;
           const active = value === date;
@@ -102,12 +102,12 @@ export function PlanMap({
               }}
               aria-pressed={active}
               className={`flex items-baseline gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                active ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-900/5'
+                active ? 'bg-ink text-white' : 'text-muted hover:bg-ink/5'
               }`}
             >
               {shortDay(value)} {value.slice(8)}
               {count > 0 && (
-                <span className={active ? 'text-white/55' : 'text-stone-400'}>{count}</span>
+                <span className={active ? 'text-white/55' : 'text-faint'}>{count}</span>
               )}
             </button>
           );
@@ -115,14 +115,14 @@ export function PlanMap({
       </div>
 
       {tilesFailed && (
-        <p className="absolute top-3 right-3 z-[500] rounded-full bg-amber-50/95 px-3 py-1.5 text-[11px] text-amber-900 shadow backdrop-blur">
+        <p className="absolute top-3 right-3 z-[500] rounded-full bg-alarm-surface/95 px-3 py-1.5 text-[11px] text-alarm-ink shadow backdrop-blur">
           Map tiles unavailable — the stops below are still correct.
         </p>
       )}
 
       {/* Stop cards, the way a place card strip works on a phone map. */}
       {stops.length === 0 ? (
-        <p className="absolute inset-x-3 bottom-7 z-[500] rounded-xl bg-white/90 px-3 py-2 text-center text-xs text-stone-500 shadow backdrop-blur">
+        <p className="absolute inset-x-3 bottom-7 z-[500] rounded-xl bg-surface/90 px-3 py-2 text-center text-xs text-muted shadow backdrop-blur">
           Nothing planned for this day.
         </p>
       ) : (
@@ -147,8 +147,8 @@ export function PlanMap({
                   onMouseEnter={() => setSelected(stop.eventId)}
                   onFocus={() => setSelected(stop.eventId)}
                   onClick={() => onOpenEvent(stop.eventId)}
-                  className={`w-full rounded-xl bg-white/95 p-2.5 text-left shadow-[0_2px_14px_rgb(0_0_0/0.12)] ring-1 backdrop-blur transition ${
-                    active ? 'ring-stone-900/70' : 'ring-black/5 hover:ring-stone-300'
+                  className={`w-full rounded-xl bg-surface/95 p-2.5 text-left shadow-[0_2px_14px_rgb(0_0_0/0.12)] ring-1 backdrop-blur transition ${
+                    active ? 'ring-ink/70' : 'ring-black/5 hover:ring-hairline'
                   }`}
                 >
                   <span className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export function PlanMap({
                     >
                       {stop.order}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-stone-900">
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
                       {stop.label}
                     </span>
                     <span className="flex shrink-0 -space-x-1">
@@ -173,7 +173,7 @@ export function PlanMap({
                       ))}
                     </span>
                   </span>
-                  <span className="mt-1 flex items-baseline justify-between gap-2 text-[11px] text-stone-500">
+                  <span className="mt-1 flex items-baseline justify-between gap-2 text-[11px] text-muted">
                     <span className="truncate">
                       {clock(stop.startMinute)} – {clock(stop.endMinute)}
                       {stop.coordinate === null && ' · no location yet'}
@@ -350,12 +350,12 @@ function Canvas({
   return (
     <>
       <div ref={box} role="application" aria-label="Map of the day" className="absolute inset-0" />
-      <div className="absolute right-3 bottom-28 z-[500] flex flex-col overflow-hidden rounded-full bg-white/85 shadow-[0_2px_12px_rgb(0_0_0/0.10)] backdrop-blur">
+      <div className="absolute right-3 bottom-28 z-[500] flex flex-col overflow-hidden rounded-full bg-surface/85 shadow-[0_2px_12px_rgb(0_0_0/0.10)] backdrop-blur">
         <button
           type="button"
           aria-label="Zoom in"
           onClick={() => map.current?.zoomIn()}
-          className="grid size-8 place-items-center text-stone-700 hover:bg-stone-900/5"
+          className="grid size-8 place-items-center text-ink hover:bg-ink/5"
         >
           <Plus aria-hidden className="size-4" />
         </button>
@@ -363,7 +363,7 @@ function Canvas({
           type="button"
           aria-label="Zoom out"
           onClick={() => map.current?.zoomOut()}
-          className="grid size-8 place-items-center text-stone-700 hover:bg-stone-900/5"
+          className="grid size-8 place-items-center text-ink hover:bg-ink/5"
         >
           <Minus aria-hidden className="size-4" />
         </button>

@@ -3,8 +3,9 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import luxon3Plugin from '@fullcalendar/luxon3';
 import type { EventInput } from '@fullcalendar/core';
-import { MapPin } from 'lucide-react';
 import { TRIP_LIMITS, type SnapshotResponse } from '@trip/contracts';
+import { AvatarRow } from './Avatar';
+import { edge, fill, onFill, onFillMuted } from './palette';
 import { money } from './format';
 
 /**
@@ -36,26 +37,25 @@ export function PlanCalendar({
       .map((row) => people.get(row.person_id))
       .filter((person) => person !== undefined);
     const venue = event.place_id === null ? null : (places.get(event.place_id)?.label ?? null);
-    const tint = roster[0]?.color ?? '#78716c';
+    const tint = roster[0]?.color ?? '#9b98a5';
+    const flagged = warned.has(event.id);
 
     return {
       id: event.id,
       title: event.label,
       start: event.starts_at,
       end: event.ends_at,
-      backgroundColor: `${tint}1a`,
-      borderColor: warned.has(event.id) ? '#b45309' : `${tint}4d`,
-      textColor: '#1c1917',
+      backgroundColor: fill(tint),
+      // A block the planner has flagged gets a ring in its own colour, so the
+      // warning above and the thing it is about are visibly the same event.
+      borderColor: flagged ? edge(tint) : 'transparent',
+      textColor: '#1b1a20',
       extendedProps: {
         roster,
+        tint,
         venue: venue === event.label ? null : venue,
         price: event.price_cents,
-        mine: snapshot.attendance.some(
-          (row) =>
-            row.event_id === event.id &&
-            row.person_id === snapshot.self_person_id &&
-            row.state === 'in',
-        ),
+        flagged,
       },
     };
   });
@@ -66,12 +66,12 @@ export function PlanCalendar({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {snapshot.events.length === 0 && (
-        <p className="mb-2 rounded-xl border border-dashed border-stone-300 px-3 py-2 text-xs text-stone-500">
+        <p className="mb-2.5 rounded-xl bg-sunken px-3.5 py-2.5 text-[13px] text-muted">
           Nothing planned yet. Agree on something in the conversation, or click a slot to add it
           yourself.
         </p>
       )}
-      <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-stone-200 bg-white">
+      <div className="min-h-0 flex-1 overflow-auto">
         <div className="min-w-[420px]">
           <FullCalendar
             // Without the Luxon plugin FullCalendar understands only 'local'
@@ -89,6 +89,9 @@ export function PlanCalendar({
             slotDuration="00:30:00"
             slotLabelInterval="01:00"
             slotLabelFormat={{ hour: 'numeric', meridiem: 'narrow' }}
+            slotLabelClassNames="fc-hour"
+            dayHeaderClassNames="fc-day-head"
+            eventClassNames="fc-block"
             eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'narrow' }}
             expandRows
             height="auto"
@@ -97,7 +100,7 @@ export function PlanCalendar({
             selectMirror
             slotEventOverlap={false}
             eventMaxStack={TRIP_LIMITS.maxOverlappingEvents}
-            dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
+            dayHeaderContent={renderDayHeader}
             events={events}
             eventClick={(info) => onOpenEvent(info.event.id)}
             select={(info) => {
@@ -119,39 +122,51 @@ function exclusiveEnd(dates: string[]): string {
   return next.toISOString().slice(0, 10);
 }
 
+function renderDayHeader(arg: { date: Date; text: string }): React.ReactElement {
+  const weekday = arg.date.toLocaleDateString('en-US', { weekday: 'short' });
+  const day = arg.date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+  return (
+    <span className="flex items-baseline gap-2 px-0.5">
+      <span className="text-[17px] font-extrabold tracking-tight text-ink">{weekday}</span>
+      <span className="text-xs font-semibold text-faint">{day}</span>
+    </span>
+  );
+}
+
 function renderEvent(arg: {
   timeText: string;
   event: { title: string; extendedProps: Record<string, unknown> };
 }): React.ReactElement {
-  const roster = (arg.event.extendedProps['roster'] ?? []) as { id: string; color: string }[];
+  const roster = (arg.event.extendedProps['roster'] ?? []) as {
+    id: string;
+    display_name: string;
+    color: string;
+  }[];
+  const tint = (arg.event.extendedProps['tint'] ?? '#9b98a5') as string;
   const venue = arg.event.extendedProps['venue'] as string | null;
   const price = arg.event.extendedProps['price'] as number | null;
-  const mine = arg.event.extendedProps['mine'] === true;
 
   return (
-    <div className="h-full overflow-hidden px-1.5 py-1 leading-tight">
-      <p className="text-[10px] text-stone-500">{arg.timeText}</p>
-      <p className="truncate text-[12px] font-semibold text-stone-900">{arg.event.title}</p>
+    <div className="overflow-hidden px-3 py-2 leading-tight">
+      <p className="text-[11px] font-semibold tnum" style={{ color: onFill(tint) }}>
+        {arg.timeText}
+      </p>
+      <p className="mt-0.5 truncate text-[13px] font-bold tracking-tight text-ink">
+        {arg.event.title}
+      </p>
       {venue !== null && (
-        <p className="flex items-center gap-0.5 truncate text-[10px] text-stone-500">
-          <MapPin aria-hidden className="size-2.5 shrink-0" />
+        <p className="truncate text-[11px]" style={{ color: onFillMuted(tint) }}>
           {venue}
         </p>
       )}
-      <div className="mt-0.5 flex items-center gap-1">
-        {roster.map((person) => (
-          <span
-            key={person.id}
-            aria-hidden
-            className="inline-block size-2 rounded-full ring-1 ring-white"
-            style={{ backgroundColor: person.color }}
-          />
-        ))}
-        <span className="ml-auto text-[10px] text-stone-500">
-          {price === null ? '—' : money(price)}
+      {/* Who and how much sit with the title, not pinned to the bottom: a
+          long event would otherwise strand them an hour below its name. */}
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <AvatarRow people={roster} size={22} ring={fill(tint)} label="Going" />
+        <span className="text-[12px] font-bold text-ink tnum">
+          {price === null ? '' : money(price)}
         </span>
       </div>
-      {mine && <span className="sr-only">You are going</span>}
     </div>
   );
 }

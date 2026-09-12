@@ -29,10 +29,10 @@ function Shell({
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <main className="grid min-h-screen place-items-center bg-stone-50 p-6">
+    <main className="grid min-h-screen place-items-center bg-ground p-6">
       <div className="w-full max-w-sm">
-        <h1 className="text-xl font-semibold text-stone-900">{title}</h1>
-        <p className="mt-1 mb-5 text-sm text-stone-500">{subtitle}</p>
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{title}</h1>
+        <p className="mt-1 mb-5 text-sm text-muted">{subtitle}</p>
         {children}
       </div>
     </main>
@@ -111,7 +111,7 @@ function CreateTrip({ onTrip }: { onTrip: (tripId: string) => void }): React.Rea
           <Field label="Your name" value={name} onChange={setName} placeholder="Ada" />
           <Field label="Your budget ($)" type="number" value={budget} onChange={setBudget} />
         </div>
-        <p className="text-[11px] text-stone-400">
+        <p className="text-[11px] text-faint">
           One destination, USD, up to {TRIP_LIMITS.maxTripDays} days and {TRIP_LIMITS.maxMembers}{' '}
           people.
         </p>
@@ -119,7 +119,7 @@ function CreateTrip({ onTrip }: { onTrip: (tripId: string) => void }): React.Rea
         <button
           type="submit"
           disabled={busy || !ready}
-          className="rounded-lg bg-stone-800 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40"
+          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-35"
         >
           {busy ? 'Starting…' : 'Start planning'}
         </button>
@@ -195,7 +195,7 @@ function JoinTrip({
         <button
           type="submit"
           disabled={busy || name.trim() === ''}
-          className="rounded-lg bg-stone-800 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40"
+          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-35"
         >
           {busy ? 'Joining…' : 'Join the trip'}
         </button>
@@ -216,9 +216,7 @@ function describe(error: unknown): string {
 
 function Problem({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-      {children}
-    </p>
+    <p className="rounded-xl bg-alarm-surface px-3.5 py-2.5 text-sm text-alarm-ink">{children}</p>
   );
 }
 
@@ -236,14 +234,14 @@ function Field({
   placeholder?: string;
 }): React.ReactElement {
   return (
-    <label className="grid gap-1 text-[11px] font-medium tracking-wide text-stone-500 uppercase">
+    <label className="grid gap-1 text-[11px] font-medium text-muted ">
       {label}
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-300 focus:border-stone-500 focus:outline-none"
+        className="rounded-xl bg-sunken px-3.5 py-2.5 text-sm text-ink placeholder:text-faint focus:outline-none"
       />
     </label>
   );

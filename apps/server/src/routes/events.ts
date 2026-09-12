@@ -5,6 +5,7 @@ import {
   listDeletedEventsQuery,
   patchEventRequest,
   patchPlaceRequest,
+  placeSearchRequest,
   putSelfAttendanceRequest,
   requestProcessingRequest,
   resolveActionRequest,
@@ -26,6 +27,7 @@ import {
 import { requireMembership } from '../domain/membership.js';
 import { resolveAction } from '../domain/actions.js';
 import { requestProcessing } from '../jobs/scheduler.js';
+import { searchForTrip } from '../domain/placeSearch.js';
 
 const tripParams = z.object({ tripId: uuid });
 const eventParams = z.object({ tripId: uuid, eventId: uuid });
@@ -33,7 +35,14 @@ const placeParams = z.object({ tripId: uuid, placeId: uuid });
 const actionParams = z.object({ tripId: uuid, actionId: uuid });
 
 /** Manual planning. Every write names the version it believed it was editing. */
-export function registerEventRoutes(app: FastifyInstance, db: Database): void {
+export interface EventRouteDeps {
+  db: Database;
+  placesEnabled: boolean;
+  geoapifyApiKey: string | null;
+}
+
+export function registerEventRoutes(app: FastifyInstance, deps: EventRouteDeps): void {
+  const { db } = deps;
   app.post('/api/trips/:tripId/events', async (request, reply) => {
     const user = requireUser(request);
     const { tripId } = parseOrThrow(tripParams, request.params);
@@ -77,6 +86,19 @@ export function registerEventRoutes(app: FastifyInstance, db: Database): void {
     const { tripId, placeId } = parseOrThrow(placeParams, request.params);
     const body = parseOrThrow(patchPlaceRequest, request.body);
     return patchPlace({ db }, user.id, tripId, placeId, body);
+  });
+
+  app.post('/api/trips/:tripId/places/search', async (request) => {
+    const user = requireUser(request);
+    const { tripId } = parseOrThrow(tripParams, request.params);
+    const body = parseOrThrow(placeSearchRequest, request.body);
+    // The key stays server-side; the browser only ever sees opaque references.
+    return searchForTrip(
+      { db, apiKey: deps.geoapifyApiKey, enabled: deps.placesEnabled },
+      user.id,
+      tripId,
+      body,
+    );
   });
 
   app.post('/api/trips/:tripId/process', async (request) => {

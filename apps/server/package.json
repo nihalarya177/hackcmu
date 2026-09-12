@@ -25,6 +25,7 @@
     "drizzle-orm": "0.45.2",
     "fastify": "5.12.4",
     "luxon": "3.7.2",
+    "opening_hours": "3.9.0",
     "pg": "8.23.0",
     "zod": "4.6.2"
   },

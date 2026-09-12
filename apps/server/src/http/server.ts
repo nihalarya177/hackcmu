@@ -34,6 +34,8 @@ export async function createHttpServer(config: HttpConfig = loadHttpConfig()): P
     allowedOrigins: config.allowedOrigins,
     maxBodyBytes: config.maxBodyBytes,
     appRevision: config.appRevision,
+    placesEnabled: config.placesEnabled,
+    geoapifyApiKey: config.geoapifyApiKey,
     logger: true,
   });
 

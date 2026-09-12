@@ -485,13 +485,26 @@ describe('manual venue correction', () => {
     expect(day?.nodes[0]?.unresolved).toBe(false);
   });
 
-  it('refuses a search candidate when no provider is enabled', async () => {
+  it('refuses a search result reference it never issued', async () => {
     const { owner, tripId } = await twoPersonTrip();
     const version = (await snapshot(owner, tripId)).calendar_version;
     const response = await addEvent(owner, tripId, version, {
       place: { kind: 'candidate', candidate_ref: 'not-a-real-reference' },
     });
-    expect(response.statusCode).toBe(503);
-    expect(response.json<{ error: { code: string } }>().error.code).toBe('DEPENDENCY_UNAVAILABLE');
+    // An unknown or expired reference is refused; nothing is fabricated from it.
+    expect(response.statusCode).toBe(422);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('UNPROCESSABLE');
+  });
+
+  it('reports place search as unavailable rather than failing when disabled', async () => {
+    const { owner, tripId } = await twoPersonTrip();
+    const response = await call('POST', `/api/trips/${tripId}/places/search`, owner, {
+      query: 'Carnegie Museum of Art',
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ provider_unavailable: boolean; candidates: unknown[] }>();
+    // Manual entry still works, so this is reported, not thrown.
+    expect(body.provider_unavailable).toBe(true);
+    expect(body.candidates).toEqual([]);
   });
 });

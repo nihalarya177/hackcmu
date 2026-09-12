@@ -306,7 +306,10 @@ function Fields({
             start_minute: startMinute,
             end_minute: endMinute,
             ...priceFields,
-            place: named === '' ? null : { kind: 'manual', label: named },
+            // A venue typed in words is a query for enrichment to resolve, not
+            // a human correction: calling it manual would mark it corrected and
+            // exclude it from ever being located.
+            place: named === '' ? null : { kind: 'query', query: named },
           })
         : api.patchEvent(snapshot.trip.id, existing.id, {
             ...envelope,
@@ -316,7 +319,7 @@ function Fields({
             end_minute: endMinute,
             ...priceFields,
             ...(place === undefined && named !== ''
-              ? { place: { kind: 'manual' as const, label: named } }
+              ? { place: { kind: 'query' as const, query: named } }
               : {}),
           });
 

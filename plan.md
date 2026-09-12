@@ -131,10 +131,10 @@ Evaluation gate: test two-person creation versus solo manual creation; ambiguous
 
 Owners: Backend for provider/projection; Frontend for map. Dependencies: M1 services and M2 worker foundation for async integration.
 
-- [ ] **G1 - Place search:** server-side destination-biased Geoapify Geocoding and Place Details using the same key. Bound/cache searches, validate opaque candidate references with ten-minute expiry, require human choice for ambiguity, and support manual fallback. No arbitrary client URLs, render-time geocoding, or unapproved alternate provider.
-- [ ] **G2 - Durable enrichment:** lease pending place work, perform network calls outside transactions, and fence commits with place revision/ownership. Never overwrite a human correction. Normalize exact-date hours with provenance and explicit unknown/closed states; do not invent authoritative prices, coordinates, or hours.
-- [ ] **G3 - Shared projections:** derive ordered event-ID sequences and prefix-tree paths on the server. Preserve stored member colors, shared prefixes, divergent branches, reconvergence histories, opposite-direction edges, unresolved stops, and conflict annotations. Calendar and map consume the same canonical information.
-- [ ] **G4 - Map UI:** Leaflet/OSM day selector, fitted known markers, shared/individual path styling, attribution, textual day plan, and return to calendar. Distinguish empty day, unresolved place, and tile outage. No fabricated route across an unresolved stop; no bulk/offline tile prefetch.
+- [x] **G1 - Place search:** server-side destination-biased Geoapify Geocoding and Place Details using the same key. Bound/cache searches, validate opaque candidate references with ten-minute expiry, require human choice for ambiguity, and support manual fallback. No arbitrary client URLs, render-time geocoding, or unapproved alternate provider.
+- [x] **G2 - Durable enrichment:** lease pending place work, perform network calls outside transactions, and fence commits with place revision/ownership. Never overwrite a human correction. Normalize exact-date hours with provenance and explicit unknown/closed states; do not invent authoritative prices, coordinates, or hours.
+- [x] **G3 - Shared projections:** derive ordered event-ID sequences and prefix-tree paths on the server. Preserve stored member colors, shared prefixes, divergent branches, reconvergence histories, opposite-direction edges, unresolved stops, and conflict annotations. Calendar and map consume the same canonical information.
+- [x] **G4 - Map UI:** Leaflet/OSM day selector, fitted known markers, shared/individual path styling, attribution, textual day plan, and return to calendar. Distinguish empty day, unresolved place, and tile outage. No fabricated route across an unresolved stop; no bulk/offline tile prefetch.
 
 Exit gate: a human place correction wins a race with enrichment; provider failure leaves the planner usable. Projection tests cover three simultaneous branches, more than three daily paths, reconvergence, same-name/different-ID events, missing coordinates, and stable colors. Visually verify real markers/tiles and failure fallback; matching calendar/map colors are an acceptance requirement.
 
@@ -189,6 +189,15 @@ Verified with `./scripts/verify.sh` (6/6) plus `npx playwright test planner.spec
 - **Browser.** Two sessions agree in chat, press Update plan, and the event appears for both with a bot line in the transcript. Screenshot evidence captured during the run.
 
 Live provider tests are kept out of CI: `./scripts/verify.sh` skips them and reports 2 skipped.
+
+### M3 exit gate evidence
+
+- **Provider preflight.** Geoapify geocoding and Place Details both answer on the supplied key. Details returns opening hours in OSM grammar (`10:00-17:00; Th 10:00-20:00`), normalized per exact trip date by the `opening_hours` parser.
+- **No location is passed to the hours parser.** It uses one only for holiday and sunrise rules and requires a country *and* a state, which cannot be derived from coordinates. Guessing would invent public-holiday closures; an expression that genuinely needs it fails and the schedule stays unknown.
+- **Enrichment is durable and fenced.** Work is leased in the database, the network calls happen outside every transaction, and the commit requires the lease token, the place revision it was claimed at, and `human_override` still false — so a slow worker cannot write stale data over a human correction or a newer edit.
+- **Browser evidence.** A venue typed in words is stored unresolved and reads "no location yet"; the worker resolves it to Carnegie Museum of Art with coordinates and Saturday hours 10:00-17:00, and the map marker appears. Real OpenStreetMap tiles with attribution.
+- **A real bug this found:** the planner was sending a typed venue name as `kind: 'manual'`, which marks a place human-corrected and therefore excludes it from enrichment permanently. Naming a venue in words is now a `query`, which is what the contract means by it.
+- **Search is server-side only.** The browser never sees the key and never composes a provider URL; it receives opaque candidate references with a ten-minute expiry, and an unknown or expired one is refused rather than fabricated from. When the provider is disabled or unreachable the endpoint reports `provider_unavailable` so manual entry still works.
 
 ## Blockers and Verification Debt
 

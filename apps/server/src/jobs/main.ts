@@ -4,6 +4,7 @@ import { loadLocalEnvFile, loadWorkerConfig } from '../config/env.js';
 import { describeError } from '../domain/errors.js';
 import { purgeExpiredRequestLimits } from '../domain/rateLimit.js';
 import { recordHeartbeat } from './heartbeat.js';
+import { enrichOnce } from './enrich.js';
 import { tick } from './scheduler.js';
 
 /**
@@ -55,6 +56,12 @@ async function main(): Promise<void> {
           lastPurgeAt = Date.now();
           await purgeExpiredRequestLimits(database.db);
         }
+
+        await enrichOnce(database.db, {
+          apiKey: config.geoapifyApiKey ?? '',
+          enabled: config.placesEnabled && config.geoapifyApiKey !== null,
+          dailyRequestLimit: config.placesDailyRequestLimit,
+        });
 
         await tick(database.db, {
           workerId: config.workerId,

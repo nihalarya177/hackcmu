@@ -16,6 +16,8 @@ export interface BuildAppOptions {
   allowedOrigins: string[];
   maxBodyBytes: number;
   appRevision: string;
+  placesEnabled?: boolean;
+  geoapifyApiKey?: string | null;
   logger?: boolean;
 }
 
@@ -56,7 +58,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerHealthRoutes(app, options.db);
   registerTripRoutes(app, { db: options.db, appRevision: options.appRevision });
   registerMessageRoutes(app, options.db);
-  registerEventRoutes(app, options.db);
+  registerEventRoutes(app, {
+    db: options.db,
+    placesEnabled: options.placesEnabled ?? false,
+    geoapifyApiKey: options.geoapifyApiKey ?? null,
+  });
 
   return app;
 }

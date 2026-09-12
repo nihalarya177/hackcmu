@@ -8,7 +8,7 @@ import {
   type PutSelfAttendanceRequest,
 } from '@trip/contracts';
 import { attendance, event, place, type Database } from '@trip/db';
-import { AppError, notFound } from './errors.js';
+import { notFound } from './errors.js';
 import {
   assertExpectedVersion,
   bumpCalendarVersion,
@@ -16,6 +16,7 @@ import {
 } from './membership.js';
 import { runIdempotent } from './receipts.js';
 import { toAttendanceResource, toEventResource, toPlaceResource } from './serializers.js';
+import { resolveCandidate } from './placeSearch.js';
 import { deleteZeroAttendanceEvents, readTripState, reconcileWarnings } from './state.js';
 
 export interface AttendanceServiceDeps {
@@ -146,13 +147,25 @@ export async function patchPlace(
       const { trip: tripRow } = await lockTripAndRequireMembership(tx, tripId, authUserId);
       assertExpectedVersion(tripRow, body.expected_calendar_version);
 
-      if (body.choice.kind === 'candidate') {
-        throw new AppError(
-          'DEPENDENCY_UNAVAILABLE',
-          'Place search is not enabled, so there is no candidate to select',
-        );
-      }
-      const choice = body.choice;
+      // A chosen search result is replayed from our own row; a manual entry is
+      // exactly what the person typed. Both mark the place human-corrected.
+      const chosen =
+        body.choice.kind === 'candidate'
+          ? await resolveCandidate(tx, authUserId, tripId, body.choice.candidate_ref)
+          : null;
+      const choice =
+        chosen === null
+          ? (body.choice as Extract<PatchPlaceRequest['choice'], { kind: 'manual' }>)
+          : {
+              kind: 'manual' as const,
+              label: chosen.label,
+              address: chosen.address,
+              coordinate:
+                chosen.lat === null || chosen.lon === null
+                  ? null
+                  : { lat: chosen.lat, lon: chosen.lon },
+              hours_days: undefined,
+            };
 
       const current = await tx
         .select()

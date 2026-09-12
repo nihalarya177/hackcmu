@@ -27,6 +27,7 @@ import {
   toEventResource,
   toPlaceResource,
 } from './serializers.js';
+import { resolveCandidate } from './placeSearch.js';
 import { deleteZeroAttendanceEvents, readTripState, reconcileWarnings } from './state.js';
 import { enumerateTripDates } from './tripDates.js';
 import type { Executor, Tx } from './types.js';
@@ -77,7 +78,7 @@ export async function createEvent(
       );
 
       await assertLiveEventCapacity(tx, tripId);
-      const placeId = await resolvePlace(tx, tripId, body.place);
+      const placeId = await resolvePlace(tx, tripId, authUserId, body.place);
 
       const inserted = await tx
         .insert(event)
@@ -164,7 +165,9 @@ export async function patchEvent(
         endMinute !== current.endMinute;
 
       const placeId =
-        body.place === undefined ? current.placeId : await resolvePlace(tx, tripId, body.place);
+        body.place === undefined
+          ? current.placeId
+          : await resolvePlace(tx, tripId, authUserId, body.place);
 
       const updated = await tx
         .update(event)
@@ -440,6 +443,7 @@ async function assertOverlapRoom(tx: Tx, tripId: string, candidate: EventRow): P
 async function resolvePlace(
   tx: Tx,
   tripId: string,
+  authUserId: string,
   input: PlaceInput | null | undefined,
 ): Promise<string | null> {
   if (input === null || input === undefined) return null;
@@ -455,10 +459,28 @@ async function resolvePlace(
   }
 
   if (input.kind === 'candidate') {
-    throw new AppError(
-      'DEPENDENCY_UNAVAILABLE',
-      'Place search is not enabled, so there is no candidate to select',
-    );
+    // Replays this server's own stored row, scoped to the session and trip
+    // that searched. The client never composes provider data itself.
+    const chosen = await resolveCandidate(tx, authUserId, tripId, input.candidate_ref);
+    const inserted = await tx
+      .insert(place)
+      .values({
+        tripId,
+        label: chosen.label,
+        normalizedLabel: normalizeLabel(chosen.label),
+        address: chosen.address,
+        lat: chosen.lat,
+        lon: chosen.lon,
+        providerPlaceId: chosen.providerPlaceId,
+        // A person chose it, so it is resolved; hours still need enrichment.
+        resolution: chosen.lat === null ? 'pending' : 'resolved',
+        searchQuery: chosen.providerPlaceId === null ? chosen.query : null,
+        revision: 1n,
+      })
+      .returning({ id: place.id });
+    const row = inserted[0];
+    if (row === undefined) throw new AppError('INTERNAL', 'place insert returned nothing');
+    return row.id;
   }
 
   // A venue named only in words has nothing resolved yet. It is stored as

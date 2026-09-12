@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "paths": {
+      "@trip/contracts": ["../packages/contracts/src/index.ts"],
+      "@trip/db": ["../packages/db/src/index.ts"],
+      "@trip/server": ["../apps/server/src/index.ts"]
+    }
+  },
+  "include": ["**/*.ts"]
+}

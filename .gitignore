@@ -7,6 +7,15 @@ node_modules/
 dist/
 build/
 coverage/
+*.tsbuildinfo
+
+# Disposable local Postgres cluster created by scripts/test-db.sh
+.tmp/
+
+# Playwright output
+playwright-report/
+test-results/
+blob-report/
 
 .DS_Store
 

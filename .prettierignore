@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+packages/db/migrations
+package-lock.json
+design
+*.md

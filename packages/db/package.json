@@ -1,0 +1,32 @@
+{
+  "name": "@trip/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx src/cli/migrate.ts",
+    "check-roles": "tsx src/cli/check-roles.ts"
+  },
+  "dependencies": {
+    "@trip/contracts": "*",
+    "drizzle-orm": "0.45.2",
+    "pg": "8.23.0",
+    "zod": "4.6.2"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "dotenv": "17.4.2",
+    "drizzle-kit": "0.31.10"
+  }
+}

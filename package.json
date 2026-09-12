@@ -1,0 +1,53 @@
+{
+  "name": "trip-planner",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0 <26"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build:ts && npm run build:web",
+    "build:ts": "tsc -b packages/contracts packages/db apps/server",
+    "build:web": "npm run build -w @trip/web",
+    "typecheck": "npm run build:ts && tsc -p apps/web --noEmit && tsc -p tests/tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
+    "dev": "npm run dev:api & npm run dev:web",
+    "dev:api": "npm run dev -w @trip/server",
+    "dev:worker": "npm run dev:worker -w @trip/server",
+    "dev:web": "npm run dev -w @trip/web",
+    "db:generate": "npm run generate -w @trip/db",
+    "db:migrate": "npm run migrate -w @trip/db",
+    "db:check-roles": "npm run check-roles -w @trip/db",
+    "clean": "rm -rf packages/*/dist apps/*/dist packages/*/*.tsbuildinfo apps/*/*.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.13.4",
+    "@vitest/coverage-v8": "5.0.0",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prettier": "3.9.6",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "5.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true
+  }
+}

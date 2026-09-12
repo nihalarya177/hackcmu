@@ -1,1 +1,41 @@
 @import 'tailwindcss';
+
+/* The standard OpenStreetMap palette — red motorways, yellow A roads, strong
+   greens — is the single most dated thing about a default map, and it fights
+   the member colours for attention. Draining it here keeps us on the tiles we
+   are licensed to use while leaving the plan as the only saturated thing on
+   screen. */
+.leaflet-tile-pane {
+  filter: saturate(0.18) brightness(1.06) contrast(0.92);
+}
+
+/* Leaflet's own chrome is the most dated part of a default map. The basemap
+   carries the design; its controls should be almost invisible. */
+.leaflet-container {
+  background: #f5f5f4;
+  font-family: inherit;
+}
+.leaflet-control-attribution {
+  background: rgb(255 255 255 / 0.72) !important;
+  backdrop-filter: blur(6px);
+  border-radius: 6px 0 0 0;
+  padding: 1px 6px !important;
+  font-size: 10px !important;
+  color: #78716c !important;
+}
+.leaflet-control-attribution a {
+  color: #57534e !important;
+}
+.leaflet-tooltip {
+  border: 0 !important;
+  border-radius: 8px !important;
+  padding: 5px 9px !important;
+  font-size: 11px !important;
+  font-weight: 500;
+  color: #1c1917 !important;
+  background: rgb(255 255 255 / 0.95) !important;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.14) !important;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: rgb(255 255 255 / 0.95) !important;
+}

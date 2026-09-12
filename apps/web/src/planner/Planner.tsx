@@ -7,6 +7,7 @@ import { Conversation } from './Conversation';
 import { EventDetail, type EventTarget, describeWarning } from './EventDetail';
 import { PlanCalendar } from './PlanCalendar';
 import { PlanMap } from './PlanMap';
+import { ActionNotices, ProcessingNote, UpdatePlanButton } from './Processing';
 import { clock, commandKey, dayLabel, initials } from './format';
 import { useMessages, useRefresh, useSnapshot, useTripRealtime } from './queries';
 
@@ -98,6 +99,8 @@ export function Planner({ tripId }: { tripId: string }): React.ReactElement {
 
         <section className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-2 pb-3">
           <div className="flex items-center gap-1">
+            <UpdatePlanButton snapshot={data} onChanged={onChanged} onError={onError} />
+            <span className="mx-1 h-4 w-px bg-stone-200" />
             <ViewTab
               active={view === 'calendar'}
               onClick={() => setView('calendar')}
@@ -123,6 +126,8 @@ export function Planner({ tripId }: { tripId: string }): React.ReactElement {
 
           {showHistory && <RemovedList snapshot={data} onChanged={onChanged} onError={onError} />}
 
+          <ProcessingNote snapshot={data} onChanged={onChanged} onError={onError} />
+          <ActionNotices snapshot={data} onChanged={onChanged} onError={onError} />
           <Warnings snapshot={data} />
 
           {view === 'calendar' ? (

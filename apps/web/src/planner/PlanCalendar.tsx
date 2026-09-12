@@ -1,6 +1,7 @@
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import luxon3Plugin from '@fullcalendar/luxon3';
 import type { EventInput } from '@fullcalendar/core';
 import { MapPin } from 'lucide-react';
 import { TRIP_LIMITS, type SnapshotResponse } from '@trip/contracts';
@@ -73,7 +74,10 @@ export function PlanCalendar({
       <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-stone-200 bg-white">
         <div className="min-w-[420px]">
           <FullCalendar
-            plugins={[timeGridPlugin, interactionPlugin]}
+            // Without the Luxon plugin FullCalendar understands only 'local'
+            // and 'UTC', and silently renders a named zone as UTC — a 10am
+            // agreement in New York drew at 2pm.
+            plugins={[timeGridPlugin, interactionPlugin, luxon3Plugin]}
             initialView="timeGrid"
             initialDate={first}
             visibleRange={{ start: first, end: exclusiveEnd(dates) }}
@@ -85,6 +89,7 @@ export function PlanCalendar({
             slotDuration="00:30:00"
             slotLabelInterval="01:00"
             slotLabelFormat={{ hour: 'numeric', meridiem: 'narrow' }}
+            eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'narrow' }}
             expandRows
             height="auto"
             nowIndicator

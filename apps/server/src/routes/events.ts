@@ -6,6 +6,8 @@ import {
   patchEventRequest,
   patchPlaceRequest,
   putSelfAttendanceRequest,
+  requestProcessingRequest,
+  resolveActionRequest,
   restoreEventRequest,
   uuid,
   versionedMutationRequest,
@@ -22,10 +24,13 @@ import {
   restoreEvent,
 } from '../domain/events.js';
 import { requireMembership } from '../domain/membership.js';
+import { resolveAction } from '../domain/actions.js';
+import { requestProcessing } from '../jobs/scheduler.js';
 
 const tripParams = z.object({ tripId: uuid });
 const eventParams = z.object({ tripId: uuid, eventId: uuid });
 const placeParams = z.object({ tripId: uuid, placeId: uuid });
+const actionParams = z.object({ tripId: uuid, actionId: uuid });
 
 /** Manual planning. Every write names the version it believed it was editing. */
 export function registerEventRoutes(app: FastifyInstance, db: Database): void {
@@ -72,6 +77,21 @@ export function registerEventRoutes(app: FastifyInstance, db: Database): void {
     const { tripId, placeId } = parseOrThrow(placeParams, request.params);
     const body = parseOrThrow(patchPlaceRequest, request.body);
     return patchPlace({ db }, user.id, tripId, placeId, body);
+  });
+
+  app.post('/api/trips/:tripId/process', async (request) => {
+    const user = requireUser(request);
+    const { tripId } = parseOrThrow(tripParams, request.params);
+    parseOrThrow(requestProcessingRequest, request.body);
+    // Queues durable work and returns promptly; the worker does the reading.
+    return requestProcessing(db, user.id, tripId);
+  });
+
+  app.post('/api/trips/:tripId/actions/:actionId', async (request) => {
+    const user = requireUser(request);
+    const { tripId, actionId } = parseOrThrow(actionParams, request.params);
+    const body = parseOrThrow(resolveActionRequest, request.body);
+    return resolveAction(db, user.id, tripId, actionId, body);
   });
 
   app.get('/api/trips/:tripId/deletions', async (request) => {

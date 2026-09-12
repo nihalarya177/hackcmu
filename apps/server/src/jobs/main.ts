@@ -1,8 +1,10 @@
+import { PROCESSING_LIMITS } from '@trip/contracts';
 import { createDatabase } from '@trip/db';
 import { loadLocalEnvFile, loadWorkerConfig } from '../config/env.js';
 import { describeError } from '../domain/errors.js';
 import { purgeExpiredRequestLimits } from '../domain/rateLimit.js';
 import { recordHeartbeat } from './heartbeat.js';
+import { tick } from './scheduler.js';
 
 /**
  * The single persistent background worker.
@@ -12,9 +14,10 @@ import { recordHeartbeat } from './heartbeat.js';
  * pauses processing, and starting it again resumes from committed state rather
  * than from anything held in memory.
  *
- * At this milestone it maintains the heartbeat and expires rate-limit buckets.
- * Claiming batches, extraction and enrichment are added by later milestones and
- * must keep the same lease and ownership rules.
+ * It maintains the heartbeat, expires rate-limit buckets, and runs one
+ * scheduler tick per loop: claiming a due batch under a fresh lease, calling
+ * the provider outside every transaction, and committing only while it still
+ * owns that lease.
  */
 async function main(): Promise<void> {
   await loadLocalEnvFile();
@@ -52,13 +55,25 @@ async function main(): Promise<void> {
           lastPurgeAt = Date.now();
           await purgeExpiredRequestLimits(database.db);
         }
+
+        await tick(database.db, {
+          workerId: config.workerId,
+          appRevision: config.appRevision,
+          mode: config.processingMode,
+          model: config.llmModel ?? '',
+          apiKey: config.geminiApiKey ?? '',
+          llmEnabled: config.llmEnabled && config.geminiApiKey !== null && config.llmModel !== null,
+          dailyRequestLimit: config.llmDailyRequestLimit,
+        });
       } catch (error) {
         // A transient database failure must not kill the worker; the heartbeat
         // simply goes stale and processing reports unavailable until it returns.
         console.error('worker tick failed:', describeError(error));
       }
 
-      await sleep(config.heartbeatIntervalMs, () => running);
+      // The scheduler polls far faster than the heartbeat interval, because a
+      // queued batch should start in seconds rather than in ten.
+      await sleep(PROCESSING_LIMITS.schedulerTickMs, () => running);
     }
   } finally {
     // Correctness never depends on this running: leases expire on their own.

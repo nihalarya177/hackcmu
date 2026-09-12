@@ -91,9 +91,13 @@ export function PlannerScreen({ tripId }: { tripId: string }): React.ReactElemen
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
-      <div className="grid min-h-0 gap-4 overflow-y-auto md:w-72 md:shrink-0">
+      <div className="flex shrink-0 flex-col gap-4 md:min-h-0 md:w-72 md:overflow-y-auto">
         <BudgetPanel snapshot={data} onChanged={onChanged} onError={onError} />
-        <HistoryPanel snapshot={data} onChanged={onChanged} onError={onError} />
+        {/* Removal history is a wide-screen affordance; on a phone the chat and
+            calendar need the height more than the audit trail does. */}
+        <div className="hidden md:block">
+          <HistoryPanel snapshot={data} onChanged={onChanged} onError={onError} />
+        </div>
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">

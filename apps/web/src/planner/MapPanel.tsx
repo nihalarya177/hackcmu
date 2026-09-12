@@ -93,6 +93,9 @@ function LeafletCanvas({
 
     return () => {
       observer.disconnect();
+      // Tearing the map down mid-animation leaves Leaflet reading positions off
+      // elements it has already dropped; stop any pan or zoom first.
+      instance.stop();
       instance.remove();
       map.current = null;
       drawn.current = null;
@@ -148,7 +151,9 @@ function LeafletCanvas({
     // Fitting against a zero-size container throws; the observer above will
     // re-run this once the panel is actually on screen.
     if (points.length > 0 && instance.getContainer().clientHeight > 0) {
-      instance.fitBounds(L.latLngBounds(points).pad(0.35), { maxZoom: 15 });
+      // No animation: the fit can be triggered by a refetch or a tab change,
+      // and an in-flight animation is what breaks on unmount.
+      instance.fitBounds(L.latLngBounds(points).pad(0.35), { maxZoom: 15, animate: false });
     }
   }, [snapshot, day, visible]);
 

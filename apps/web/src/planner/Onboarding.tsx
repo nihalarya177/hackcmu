@@ -39,7 +39,7 @@ export function Onboarding({ onTrip }: { onTrip: (tripId: string) => void }): Re
             type="button"
             onClick={() => setTab(name)}
             aria-pressed={tab === name}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm capitalize ${
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm ${
               tab === name ? 'bg-slate-900 text-white' : 'text-slate-700'
             }`}
           >

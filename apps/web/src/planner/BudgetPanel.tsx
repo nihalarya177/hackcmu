@@ -20,10 +20,12 @@ export function BudgetPanel({
   const self = snapshot.self_person_id;
 
   return (
-    <aside className="flex w-full shrink-0 flex-col gap-4 border-slate-200 md:w-72 md:border-r md:pr-5">
+    <aside className="flex w-full shrink-0 flex-col gap-3 border-slate-200 md:gap-4 md:border-r md:pr-5">
       <div>
         <h2 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">Budgets</h2>
-        <ul className="mt-2 grid gap-2">
+        {/* A row that scrolls sideways on a phone, where a full-height column
+            would leave no room for the conversation; a column on a wide screen. */}
+        <ul className="mt-2 flex gap-2 overflow-x-auto pb-1 md:grid md:overflow-visible md:pb-0">
           {snapshot.members.map((person) => {
             const budget = snapshot.budgets.find((row) => row.person_id === person.id);
             if (budget === undefined) return null;
@@ -31,7 +33,7 @@ export function BudgetPanel({
             return (
               <li
                 key={person.id}
-                className={`rounded-lg border p-3 ${
+                className={`w-52 shrink-0 rounded-lg border p-3 md:w-auto ${
                   isSelf ? 'border-slate-400 bg-white' : 'border-slate-200 bg-white/60'
                 }`}
               >
@@ -166,7 +168,7 @@ function WarningList({ snapshot }: { snapshot: SnapshotResponse }): React.ReactE
   return (
     <div>
       <h2 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">Watch out</h2>
-      <ul className="mt-2 grid gap-2">
+      <ul className="mt-2 grid max-h-28 gap-2 overflow-y-auto md:max-h-none">
         {active.map((warning) => (
           <li
             key={warning.key}

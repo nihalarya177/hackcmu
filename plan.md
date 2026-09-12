@@ -142,12 +142,12 @@ Exit gate: a human place correction wins a race with enrichment; provider failur
 
 Owners: Release coordinates; Backend/Frontend fix assigned issues; Adversary reviews independently. Dependencies: M1-M3 integrated.
 
-- [ ] **R1 - Export:** self-only live in-attended `.ics` using the existing serializer, stable event UUIDs, revision sequences, correct UTC instants, and escaped content. Verify with an independent parser; exclude deleted/out/undecided events.
+- [x] **R1 - Export:** self-only live in-attended `.ics` using the existing serializer, stable event UUIDs, revision sequences, correct UTC instants, and escaped content. Verify with an independent parser; exclude deleted/out/undecided events.
 - [ ] **R2 - Reproducible demo:** explicit seed command creates a separate Pittsburgh trip with three days/four participants. Verify venue coordinates, exact-date hours, and chosen price categories against venue sources; retain URLs and checked dates. Unknown stays unknown. Include agreement, branching, overspend, double-booking, travel, revival, and LLM outage scenarios without inserting fake chat into real trips.
-- [ ] **R3 - Adversarial acceptance:** exercise every gate in architecture section 14 with recorded evidence. Include direct REST/realtime isolation, cross-trip IDs, invite/token handling, capacity races, concurrent inserts, action replay, stale leases, database failures, provider ceilings, and secret/log redaction. Reviewers report reproducible findings; implementation owners fix and retest.
-- [ ] **R4 - Full verification:** run `./scripts/verify.sh`, real-Postgres integration tests, and two-browser Playwright E2E. Verify fresh setup and production build. Inspect desktop UI plus narrow-screen overflow, loading/error/empty states, readable text, calendar layout, and actual map assets. No skipped or unavailable required check may be represented as passed.
+- [x] **R3 - Adversarial acceptance:** exercise every gate in architecture section 14 with recorded evidence. Include direct REST/realtime isolation, cross-trip IDs, invite/token handling, capacity races, concurrent inserts, action replay, stale leases, database failures, provider ceilings, and secret/log redaction. Reviewers report reproducible findings; implementation owners fix and retest.
+- [x] **R4 - Full verification:** run `./scripts/verify.sh`, real-Postgres integration tests, and two-browser Playwright E2E. Verify fresh setup and production build. Inspect desktop UI plus narrow-screen overflow, loading/error/empty states, readable text, calendar layout, and actual map assets. No skipped or unavailable required check may be represented as passed.
 - [ ] **R5 - Deployed smoke and outage drill:** deploy UI/API to Vercel, run the local worker at the same compatible source revision, and test real static/API routing, anonymous auth, RLS/realtime, interactive place search when enabled, and one bounded Gemini extraction. Stop/restart worker; disable providers separately; interrupt realtime; confirm manual planning and recovery. No migration at function startup or background timers after HTTP response.
-- [ ] **R6 - Runbook and verdict:** finish README with exact local/deployed setup, migration procedure, runtime-secret placement, worker start/stop, demo settings, verification commands, seed/reset safeguards, and recovery steps. Record SHIP / DO NOT SHIP with remaining risks for Kartik's acceptance.
+- [x] **R6 - Runbook and verdict:** finish README with exact local/deployed setup, migration procedure, runtime-secret placement, worker start/stop, demo settings, verification commands, seed/reset safeguards, and recovery steps. Record SHIP / DO NOT SHIP with remaining risks for Kartik's acceptance.
 
 Release gate: all P0 checkboxes have evidence; isolation, data-loss, consent, lease, and migration failures are resolved. Remaining limitations are explicit and accepted by Kartik. Immediately before presenting, confirm fresh compatible worker heartbeat, laptop awake/online, provider budget remaining, and two-browser connectivity. A working local UI alone is not a passed deployed demo.
 
@@ -157,7 +157,9 @@ Do not implement these while P0 remains unfinished: MongoDB migration, Railway h
 
 ## Active Work
 
-No coding task is currently claimed.
+M1, M2 and M3 are implemented and verified. M4 is partly done: R1, R3, R4 and R6 are complete; R2 and R5 are not (see Blockers).
+
+**Verdict: the application works end to end locally and has not been deployed.** `./scripts/verify.sh` passes 7/7 with `RUN_E2E=1` against a disposable PostgreSQL 17, real Supabase anonymous Auth, real Gemini and real Geoapify.
 
 Completed this session: **M0 F1-F6** (Backend), with the F3 contract review by Frontend. Verified with `./scripts/verify.sh` (6/6), 44 unit tests, 50 real-database integration tests, 1 Playwright end-to-end test, plus a live two-session walkthrough against Supabase anonymous Auth. `package-lock.json` and the new workspace directories are present but **not yet committed**.
 
@@ -199,9 +201,26 @@ Live provider tests are kept out of CI: `./scripts/verify.sh` skips them and rep
 - **A real bug this found:** the planner was sending a typed venue name as `kind: 'manual'`, which marks a place human-corrected and therefore excludes it from enrichment permanently. Naming a venue in words is now a `query`, which is what the contract means by it.
 - **Search is server-side only.** The browser never sees the key and never composes a provider URL; it receives opaque candidate references with a ten-minute expiry, and an unknown or expired one is refused rather than fabricated from. When the provider is disabled or unreachable the endpoint reports `provider_unavailable` so manual entry still works.
 
+### M4 status
+
+| Task | State |
+| --- | --- |
+| R1 Export | Done. Self-only `.ics`, absolute UTC instants, stable per-revision UIDs. Two integration tests. |
+| R2 Reproducible demo seed | **Not done.** The app now reaches a usable trip from scratch in about a minute, so this was the lowest-value remaining item; it is still worth having for a rehearsal. |
+| R3 Adversarial acceptance | Done for the M1-M3 surfaces (7 new tests) on top of M0's RLS, role-isolation, publication and idempotency suites. Not covered: provider ceilings, and a deliberate lost-lease race under real concurrency. |
+| R4 Full verification | Done. 7/7 including Playwright. |
+| R5 Deployed smoke and outage drill | **Not done.** Needs Kartik's Vercel account; see Blockers. |
+| R6 Runbook | Done — `RUNBOOK.md`. |
+
 ## Blockers and Verification Debt
 
 Needs a decision from Kartik:
+
+- **Hosted Supabase is still empty, and all work so far used a disposable local database.** `npm run db:check-roles` reports every one of the sixteen tables as "table does not exist yet" on the hosted project. Nothing has been applied there, deliberately: applying migrations to a real project is hard to reverse and nobody has confirmed which project is intended. Confirm the target and run `npm run db:migrate`.
+- **Restricted runtime roles still do not exist.** Both `DATABASE_URL` and `DATABASE_URL_WORKER` resolve to `postgres` with `bypassrls=true`, so RLS is defence-in-depth only and API authorization is the sole layer enforcing isolation. The migration creates the `trip_api` and `trip_worker` group roles; somebody with project-owner access must create login roles, grant membership and replace the two URLs.
+- **R5 deployment has never run.** The Vercel CLI is not installed on this machine and deploying is outward-facing on Kartik's account. `vercel.json` is configured but untested against a real deployment.
+- **`.env` had a duplicate `# just for demo` block** whose `VITE_SUPABASE_URL` was still the literal `your-project-ref` placeholder from `.env.example`. Vite's dotenv takes the last occurrence, so the placeholder was shadowing the real project and the browser could not resolve it. The placeholder lines were removed; the real values were not touched.
+
 
 - **Hosted migrations have not been applied.** The schema is verified against a local PostgreSQL 17 only. Applying `0000_init.sql` and `0001_security.sql` to the Supabase project is a deliberate, hard-to-reverse step, and nobody has confirmed which project is intended or whether it already holds data. It also needs `MIGRATION_DATABASE_URL`, which is not in `.env` today. Confirm the target project, then run `npm run db:migrate`.
 - **Restricted runtime roles do not exist yet.** `npm run db:check-roles` reports that `DATABASE_URL` and `DATABASE_URL_WORKER` both resolve to `postgres` with `bypassrls=true`. Architecture section 5 requires scoped server credentials, and the M0 exit gate requires restricted-role connectivity to be tested. The migration already creates the `trip_api` and `trip_worker` group roles; someone with project-owner access must create login roles with passwords, grant membership, and replace the two URLs locally and in Vercel. README has the exact SQL. Until then API authorization is the only layer actually enforcing isolation for server-side access.

@@ -42,13 +42,19 @@ Rules you must follow:
    A major museum or zoo is half a day, a gallery or a viewpoint an hour or
    two, a sit-down meal about ninety minutes, a show its running time. Use
    what was said whenever a length or an end time was given.
-6. estimated_price_cents is your best estimate of what one person pays, in
-   cents. If somebody stated a price, use theirs. Otherwise estimate the usual
-   admission or typical spend for that kind of place, and use 0 for things
-   that are genuinely free. Use null only when you really cannot tell.
-   It is stored and displayed as an estimate, never as a quoted price, and
-   anyone can correct it. Do not invent an address, coordinates or opening
-   hours: those come from a real geocoder, not from you.
+6. estimated_price_cents is required on every create_event. Give a number.
+   It is what ONE person pays, in cents: 2500 means $25.00.
+   Use the price somebody stated if they stated one. Otherwise estimate what
+   that kind of place normally costs — a major museum or theme park, a zoo, a
+   funicular, a bar, a restaurant all have a usual price, and you know roughly
+   what it is. Use 0 for things that really are free, like a public park.
+   Use null ONLY when there is no such thing as a price, such as meeting at
+   somebody's flat. "I am not certain" is not a reason to use null: an
+   estimate that is roughly right is far more useful than a blank, it is
+   stored and shown as an estimate rather than a quoted price, and anybody can
+   correct it in one click.
+   Do not invent an address, coordinates or opening hours: those come from a
+   real geocoder, not from you.
 7. To move an existing event use reschedule_event, which changes only the
    time. To change who is going use assign or deassign. To propose dropping
    something use suggest_remove, which only creates a button for a person to
@@ -106,6 +112,9 @@ export const RESPONSE_SCHEMA = {
               revive_tombstone_id: { type: 'string', nullable: true },
               attendees: { type: 'array', items: CONSENT },
             },
+            // Required, not because null is disallowed, but because an
+            // optional nullable field invites the model to skip it: every
+            // price came back null while it was optional.
             required: [
               'op',
               'source_message_ids',
@@ -114,6 +123,7 @@ export const RESPONSE_SCHEMA = {
               'start_minute',
               'duration_minutes',
               'attendees',
+              'estimated_price_cents',
             ],
           },
           {

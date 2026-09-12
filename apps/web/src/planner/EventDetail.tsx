@@ -222,7 +222,7 @@ export function describeWarning(
     case 'budget_exceeded':
       return `${who ?? 'Someone'} is over budget: ${money(warning.details.known_spend_cents)} committed against ${money(warning.details.budget_cents)}.`;
     case 'insufficient_travel_time':
-      return `${who ?? 'Someone'} has ${warning.details.available_minutes} minutes to get between ${labels.join(' and ')}; the straight-line estimate needs ${warning.details.required_minutes ?? '?'}.`;
+      return `${who ?? 'Someone'} has ${warning.details.available_minutes} minutes to get between ${labels.join(' and ')}, and the estimated travel time is ${warning.details.required_minutes ?? '?'} minutes.`;
     case 'venue_closed':
       return `The venue is recorded as closed that day.`;
     case 'outside_opening_hours':

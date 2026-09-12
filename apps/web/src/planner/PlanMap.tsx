@@ -1,15 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { MapPin } from 'lucide-react';
 import type { DayPathResource, SnapshotResponse } from '@trip/contracts';
-import { clock, shortDay } from './format';
+import { clock, money, shortDay } from './format';
+
+type Stop = {
+  event_id: string;
+  order: number;
+  label: string;
+  startMinute: number;
+  endMinute: number;
+  price: number | null;
+  members: string[];
+  coordinate: { lat: number; lon: number } | null;
+};
 
 /**
- * Where the day actually goes, on a real map.
+ * Where the day actually goes.
  *
- * One marker per event, drawn from the server's day paths so the calendar and
- * the map cannot disagree. Nothing is drawn across a stop whose position is
- * unknown; it is listed in words instead of being guessed onto the map.
+ * The plan is a sequence, so the map draws it as one: stops are numbered in
+ * the order they happen, and selecting a stop in either the list or the map
+ * highlights it in the other. Colour identifies who is going, taken from the
+ * same member palette the calendar uses.
  */
 export function PlanMap({
   snapshot,
@@ -19,30 +32,52 @@ export function PlanMap({
   onOpenEvent: (eventId: string) => void;
 }): React.ReactElement {
   const [date, setDate] = useState(snapshot.trip.dates[0] ?? snapshot.trip.start_date);
+  const [selected, setSelected] = useState<string | null>(null);
   const [tilesFailed, setTilesFailed] = useState(false);
   const day = snapshot.day_paths.find((entry) => entry.date === date);
 
+  const stops = useMemo(() => orderedStops(snapshot, day), [snapshot, day]);
+  const located = stops.filter((stop) => stop.coordinate !== null);
+  const unlocated = stops.filter((stop) => stop.coordinate === null);
+  const people = new Map(snapshot.members.map((person) => [person.id, person]));
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="flex gap-1">
-        {snapshot.trip.dates.map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setDate(value)}
-            aria-pressed={value === date}
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-              value === date
-                ? 'bg-stone-800 text-white'
-                : 'bg-white text-stone-600 hover:bg-stone-100'
-            }`}
-          >
-            {shortDay(value)} {value.slice(8)}
-          </button>
-        ))}
+      <div className="flex items-center gap-1">
+        {snapshot.trip.dates.map((value) => {
+          const count = snapshot.day_paths.find((entry) => entry.date === value)?.nodes.length ?? 0;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => {
+                setDate(value);
+                setSelected(null);
+              }}
+              aria-pressed={value === date}
+              className={`flex items-baseline gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                value === date ? 'bg-stone-800 text-white' : 'text-stone-600 hover:bg-stone-100'
+              }`}
+            >
+              {shortDay(value)} {value.slice(8)}
+              {count > 0 && (
+                <span className={value === date ? 'text-stone-300' : 'text-stone-400'}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      <Canvas snapshot={snapshot} day={day} onTileError={() => setTilesFailed(true)} />
+      <Canvas
+        snapshot={snapshot}
+        day={day}
+        stops={located}
+        selected={selected}
+        onSelect={setSelected}
+        onTileError={() => setTilesFailed(true)}
+      />
 
       {tilesFailed && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
@@ -50,7 +85,69 @@ export function PlanMap({
         </p>
       )}
 
-      <DayList snapshot={snapshot} day={day} onOpenEvent={onOpenEvent} />
+      {stops.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-stone-300 px-3 py-2 text-xs text-stone-500">
+          Nothing planned for this day.
+        </p>
+      ) : (
+        <ol aria-label="Stops on this day" className="grid min-h-0 gap-1 overflow-y-auto pr-0.5">
+          {stops.map((stop) => (
+            <li key={stop.event_id}>
+              <button
+                type="button"
+                onMouseEnter={() => stop.coordinate !== null && setSelected(stop.event_id)}
+                onClick={() => onOpenEvent(stop.event_id)}
+                className={`flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition ${
+                  selected === stop.event_id
+                    ? 'border-stone-800 bg-stone-50'
+                    : 'border-stone-200 bg-white hover:border-stone-300'
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className="grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white"
+                  style={{ backgroundColor: people.get(stop.members[0] ?? '')?.color ?? '#78716c' }}
+                >
+                  {stop.order}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-stone-800">{stop.label}</span>
+                  <span className="text-[11px] text-stone-500">
+                    {clock(stop.startMinute)} – {clock(stop.endMinute)}
+                    {stop.price !== null && ` · ${money(stop.price)}`}
+                    {stop.coordinate === null && ' · no location yet'}
+                  </span>
+                </span>
+                <span className="flex shrink-0 -space-x-1">
+                  {stop.members.map((id) => (
+                    <span
+                      key={id}
+                      aria-label={people.get(id)?.display_name}
+                      className="inline-block size-2.5 rounded-full ring-2 ring-white"
+                      style={{ backgroundColor: people.get(id)?.color }}
+                    />
+                  ))}
+                </span>
+              </button>
+            </li>
+          ))}
+          {(day?.idle_member_ids.length ?? 0) > 0 && (
+            <li className="px-1 pt-0.5 text-[11px] text-stone-500">
+              Free all day:{' '}
+              {(day?.idle_member_ids ?? [])
+                .map((id) => people.get(id)?.display_name ?? 'someone')
+                .join(', ')}
+            </li>
+          )}
+        </ol>
+      )}
+
+      {unlocated.length > 0 && located.length > 0 && (
+        <p className="flex items-center gap-1.5 text-[11px] text-stone-500">
+          <MapPin aria-hidden className="size-3" />
+          {unlocated.length} stop{unlocated.length === 1 ? '' : 's'} not on the map yet
+        </p>
+      )}
     </div>
   );
 }
@@ -58,10 +155,16 @@ export function PlanMap({
 function Canvas({
   snapshot,
   day,
+  stops,
+  selected,
+  onSelect,
   onTileError,
 }: {
   snapshot: SnapshotResponse;
   day: DayPathResource | undefined;
+  stops: Stop[];
+  selected: string | null;
+  onSelect: (eventId: string) => void;
   onTileError: () => void;
 }): React.ReactElement {
   const box = useRef<HTMLDivElement>(null);
@@ -71,13 +174,12 @@ function Canvas({
 
   useEffect(() => {
     if (box.current === null || map.current !== null) return;
-    const instance = L.map(box.current, { zoomControl: true }).setView(
+    const instance = L.map(box.current, { zoomControl: true, attributionControl: true }).setView(
       [snapshot.trip.destination_center.lat, snapshot.trip.destination_center.lon],
       13,
     );
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      // Attribution is a condition of using these tiles, not decoration.
       attribution: '© OpenStreetMap contributors',
     })
       .on('tileerror', onTileError)
@@ -85,8 +187,6 @@ function Canvas({
     layer.current = L.layerGroup().addTo(instance);
     map.current = instance;
 
-    // The panel can be mounted while hidden, where the container has no size
-    // and Leaflet lays the map out against nothing.
     const observer = new ResizeObserver((entries) => {
       instance.invalidateSize();
       if ((entries[0]?.contentRect.height ?? 0) > 0) setSized(true);
@@ -95,8 +195,6 @@ function Canvas({
 
     return () => {
       observer.disconnect();
-      // Tearing down mid-animation leaves Leaflet reading positions off
-      // elements it has already dropped.
       instance.stop();
       instance.remove();
       map.current = null;
@@ -112,148 +210,118 @@ function Canvas({
 
     const colors = new Map(snapshot.members.map((person) => [person.id, person.color]));
     const nodes = new Map((day?.nodes ?? []).map((node) => [node.id, node]));
-    const points: L.LatLngExpression[] = [];
 
+    // One line per person, dashed differently, so two people walking the same
+    // leg are both visible instead of one hiding under the other.
     for (const edge of day?.edges ?? []) {
       if (!edge.drawable) continue;
       const from = nodes.get(edge.from_node_id)?.coordinate;
       const to = nodes.get(edge.to_node_id)?.coordinate;
       if (from == null || to == null) continue;
-      L.polyline(
-        [
-          [from.lat, from.lon],
-          [to.lat, to.lon],
-        ],
-        { color: colors.get(edge.member_ids[0] ?? '') ?? '#78716c', weight: 3, opacity: 0.7 },
-      ).addTo(group);
+      for (const [index, memberId] of edge.member_ids.entries()) {
+        L.polyline(
+          [
+            [from.lat, from.lon],
+            [to.lat, to.lon],
+          ],
+          {
+            color: colors.get(memberId) ?? '#78716c',
+            weight: 2.5,
+            opacity: 0.8,
+            dashArray: index === 0 ? undefined : `${4 + index * 3} ${4 + index * 3}`,
+          },
+        ).addTo(group);
+      }
     }
 
-    // One marker per event id: separate histories that reconverge on the same
-    // stop share an event, and two markers on one point would read as two visits.
-    for (const stop of distinctStops(day)) {
+    for (const stop of stops) {
       if (stop.coordinate === null) continue;
-      L.circleMarker([stop.coordinate.lat, stop.coordinate.lon], {
-        radius: 8,
-        color: '#ffffff',
-        weight: 2,
-        fillColor: colors.get(stop.member_ids[0] ?? '') ?? '#78716c',
-        fillOpacity: 1,
+      const tint = colors.get(stop.members[0] ?? '') ?? '#78716c';
+      const isSelected = stop.event_id === selected;
+
+      // A numbered pin: the plan is a sequence, so the map shows the order.
+      const marker = L.marker([stop.coordinate.lat, stop.coordinate.lon], {
+        icon: L.divIcon({
+          className: '',
+          html: `<span style="
+            display:grid;place-items:center;
+            width:${isSelected ? 30 : 24}px;height:${isSelected ? 30 : 24}px;
+            border-radius:9999px;background:${tint};color:#fff;
+            font:600 ${isSelected ? 13 : 11}px system-ui,sans-serif;
+            box-shadow:0 0 0 ${isSelected ? 3 : 2}px #fff,0 1px 4px rgba(0,0,0,.4);
+          ">${stop.order}</span>`,
+          iconSize: [isSelected ? 30 : 24, isSelected ? 30 : 24],
+          iconAnchor: [isSelected ? 15 : 12, isSelected ? 15 : 12],
+        }),
+        zIndexOffset: isSelected ? 1000 : 0,
       })
         .bindTooltip(
-          snapshot.events.find((event) => event.id === stop.event_id)?.label ?? 'Removed',
-          { direction: 'top' },
+          `<b>${escapeHtml(stop.label)}</b><br>${clock(stop.startMinute)} – ${clock(stop.endMinute)}`,
+          { direction: 'top', offset: [0, -14] },
         )
-        .addTo(group);
-      points.push([stop.coordinate.lat, stop.coordinate.lon]);
+        .on('click', () => onSelect(stop.event_id));
+      marker.addTo(group);
     }
 
+    const points = stops
+      .filter((stop) => stop.coordinate !== null)
+      .map((stop) => [stop.coordinate!.lat, stop.coordinate!.lon] as L.LatLngExpression);
     if (points.length > 0 && sized) {
-      instance.fitBounds(L.latLngBounds(points).pad(0.35), { maxZoom: 15, animate: false });
+      instance.fitBounds(L.latLngBounds(points).pad(0.3), { maxZoom: 15, animate: false });
     }
-  }, [snapshot, day, sized]);
+  }, [snapshot, day, stops, selected, sized, onSelect]);
 
   return (
     <div
       ref={box}
       role="application"
       aria-label="Map of the day"
-      className="h-56 w-full shrink-0 overflow-hidden rounded-xl border border-stone-200 md:h-72"
+      className="min-h-48 w-full flex-1 overflow-hidden rounded-xl border border-stone-200"
     />
   );
 }
 
-type Stop = {
-  event_id: string;
-  member_ids: string[];
-  coordinate: { lat: number; lon: number } | null;
-  unresolved: boolean;
-};
-
-function distinctStops(day: DayPathResource | undefined): Stop[] {
-  const stops = new Map<string, Stop>();
+/**
+ * The day's distinct stops in the order they happen.
+ *
+ * The prefix tree keeps one node per history, so a stop two groups both attend
+ * appears more than once; they merge back into one entry carrying everyone.
+ */
+function orderedStops(snapshot: SnapshotResponse, day: DayPathResource | undefined): Stop[] {
+  const merged = new Map<string, { members: string[]; coordinate: Stop['coordinate'] }>();
   for (const node of day?.nodes ?? []) {
-    const existing = stops.get(node.event_id);
+    const existing = merged.get(node.event_id);
     if (existing === undefined) {
-      stops.set(node.event_id, {
-        event_id: node.event_id,
-        member_ids: [...node.member_ids],
-        coordinate: node.coordinate,
-        unresolved: node.unresolved,
-      });
+      merged.set(node.event_id, { members: [...node.member_ids], coordinate: node.coordinate });
       continue;
     }
     for (const id of node.member_ids) {
-      if (!existing.member_ids.includes(id)) existing.member_ids.push(id);
+      if (!existing.members.includes(id)) existing.members.push(id);
     }
   }
-  return [...stops.values()];
+
+  return [...merged.entries()]
+    .map(([eventId, value]) => {
+      const event = snapshot.events.find((row) => row.id === eventId);
+      return {
+        event_id: eventId,
+        order: 0,
+        label: event?.label ?? 'Removed',
+        startMinute: event?.start_minute ?? 0,
+        endMinute: event?.end_minute ?? 0,
+        price: event?.price_cents ?? null,
+        members: value.members,
+        coordinate: value.coordinate,
+      };
+    })
+    .sort((a, b) => a.startMinute - b.startMinute)
+    .map((stop, index) => ({ ...stop, order: index + 1 }));
 }
 
-function DayList({
-  snapshot,
-  day,
-  onOpenEvent,
-}: {
-  snapshot: SnapshotResponse;
-  day: DayPathResource | undefined;
-  onOpenEvent: (eventId: string) => void;
-}): React.ReactElement {
-  const people = new Map(snapshot.members.map((person) => [person.id, person]));
-  const starts = new Map(snapshot.events.map((event) => [event.id, event.start_minute]));
-  const stops = distinctStops(day).sort(
-    (a, b) => (starts.get(a.event_id) ?? 0) - (starts.get(b.event_id) ?? 0),
-  );
-
-  if (stops.length === 0) {
-    return (
-      <p className="rounded-xl border border-dashed border-stone-300 px-3 py-2 text-xs text-stone-500">
-        Nothing planned for this day.
-      </p>
-    );
-  }
-
-  return (
-    <ol aria-label="Stops on this day" className="grid min-h-0 gap-1 overflow-y-auto">
-      {stops.map((stop) => {
-        const event = snapshot.events.find((row) => row.id === stop.event_id);
-        return (
-          <li key={stop.event_id}>
-            <button
-              type="button"
-              onClick={() => onOpenEvent(stop.event_id)}
-              className="flex w-full items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-left hover:border-stone-300"
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-sm text-stone-800">
-                  {event?.label ?? 'Removed'}
-                </span>
-                <span className="text-[11px] text-stone-500">
-                  {event === undefined ? '' : clock(event.start_minute)}
-                  {stop.unresolved && ' · no location yet'}
-                </span>
-              </span>
-              <span className="flex shrink-0 gap-1">
-                {stop.member_ids.map((id) => (
-                  <span
-                    key={id}
-                    aria-label={people.get(id)?.display_name}
-                    className="inline-block size-2 rounded-full"
-                    style={{ backgroundColor: people.get(id)?.color }}
-                  />
-                ))}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-      {(day?.idle_member_ids.length ?? 0) > 0 && (
-        <li className="px-1 pt-1 text-[11px] text-stone-500">
-          Free:{' '}
-          {(day?.idle_member_ids ?? [])
-            .map((id) => people.get(id)?.display_name ?? 'someone')
-            .join(', ')}
-        </li>
-      )}
-    </ol>
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char,
   );
 }

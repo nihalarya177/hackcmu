@@ -17,15 +17,7 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
   },
-  projects: [
-    // One anonymous sign-in, reused by everything that does not need its own.
-    { name: 'setup', testMatch: /session\.setup\.ts/ },
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'], storageState: 'tests/e2e/.session.json' },
-      dependencies: ['setup'],
-    },
-  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
       command: 'npm run dev:api',

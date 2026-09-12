@@ -16,11 +16,15 @@ async function openApp(context: BrowserContext): Promise<Page> {
 }
 
 /**
- * A context carrying the shared anonymous session. Reusing it keeps the suite
- * inside the auth provider's hourly sign-in quota.
+ * Every test gets its own anonymous identity.
+ *
+ * Sharing one saved session across contexts would save sign-ins, but they
+ * would then share a refresh token, and those rotate: whichever context
+ * refreshes first invalidates the other. Correct tests are worth more than
+ * the quota.
  */
-async function sharedContext(browser: Browser): Promise<BrowserContext> {
-  return browser.newContext({ storageState: 'tests/e2e/.session.json' });
+async function ownContext(browser: Browser): Promise<BrowserContext> {
+  return browser.newContext();
 }
 
 async function createTrip(page: Page, name: string): Promise<void> {
@@ -37,12 +41,7 @@ async function createTrip(page: Page, name: string): Promise<void> {
 }
 
 test('two people plan one trip together', async ({ browser }) => {
-  const first = await browser.newContext({
-    storageState: 'tests/e2e/.session.json',
-    permissions: ['clipboard-read', 'clipboard-write'],
-  });
-  // A genuinely separate identity: this is the one sign-in the suite must pay
-  // for, because two people is the entire point of the test.
+  const first = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
   const second = await browser.newContext();
 
   const ada = await openApp(first);
@@ -96,7 +95,7 @@ test('two people plan one trip together', async ({ browser }) => {
 });
 
 test('a stale edit is refused and the plan is refreshed, not overwritten', async ({ browser }) => {
-  const context = await sharedContext(browser);
+  const context = await ownContext(browser);
   const page = await openApp(context);
   await createTrip(page, 'Ada');
 
@@ -114,7 +113,7 @@ test('a stale edit is refused and the plan is refreshed, not overwritten', async
 });
 
 test('an event nobody attends leaves the calendar and can be put back', async ({ browser }) => {
-  const context = await sharedContext(browser);
+  const context = await ownContext(browser);
   const page = await openApp(context);
   await createTrip(page, 'Ada');
 
@@ -137,8 +136,7 @@ test('an event nobody attends leaves the calendar and can be put back', async ({
 });
 
 test('a browser that lost its identity is sent back, not stranded', async ({ browser }) => {
-  // Its own session, because this test destroys it.
-  const context = await sharedContext(browser);
+  const context = await ownContext(browser);
   const page = await openApp(context);
   await createTrip(page, 'Ada');
 

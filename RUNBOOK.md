@@ -92,12 +92,12 @@ Runs formatting, lint, strict typecheck, unit tests, real-Postgres integration
 tests, the production build and Playwright. A check that cannot run is reported
 as a failure, never as a pass.
 
-The Playwright suite shares one anonymous session (`tests/e2e/session.setup.ts`)
-so a full run costs about three sign-ins rather than one per test. Supabase
-still caps anonymous sign-ins per hour per IP, so running the suite many times
-in quick succession — or opening lots of incognito windows alongside it — will
-eventually fail with "Request rate limit reached". That is the provider's
-limit, not a defect; wait for the hour to roll over and re-run.
+Each Playwright test signs in anonymously, because sharing one session across
+browser contexts would mean sharing a refresh token, and those rotate. Supabase
+caps anonymous sign-ins per hour per IP, so running the suite several times in
+quick succession — or opening many incognito windows alongside it — will fail
+with "Request rate limit reached". That is the provider's limit, not a defect;
+wait for the hour to roll over and re-run.
 
 The live provider tests are kept out of that run because they cost real
 requests:

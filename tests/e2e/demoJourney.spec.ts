@@ -59,7 +59,7 @@ test('agreement becomes an event, and the attendance change moves a budget', asy
   await museum.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Carnegie Museum of Art' })).toBeVisible();
-  await dialog.getByRole('button', { name: 'in', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Going', exact: true }).click();
 
   // 5. The roster and the budget agree, without a reload.
   await expect(dialog.getByRole('list').filter({ hasText: 'Cleo' })).toBeVisible();
@@ -93,9 +93,9 @@ test('an unsent draft survives switching between chat and calendar', async ({ pa
   await page.setViewportSize({ width: 480, height: 900 });
   await page.getByLabel('Message').fill('half-written thought');
 
-  await page.getByRole('button', { name: 'calendar' }).click();
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click();
   await expect(page.locator('.fc-view-harness')).toBeVisible();
-  await page.getByRole('button', { name: 'chat' }).click();
+  await page.getByRole('button', { name: 'Chat', exact: true }).click();
 
   await expect(page.getByLabel('Message')).toHaveValue('half-written thought');
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SelfAttendanceChoice, SnapshotResponse } from '@trip/contracts';
 import { useAdapter } from '../adapter/context';
 import { clock, commandKey, dayLabel, inputFromMinute, minuteFromInput } from './format';
+import { VenueCorrection } from './VenueCorrection';
 
 type Mode = { kind: 'create' } | { kind: 'edit'; eventId: string };
 
@@ -58,6 +59,9 @@ export function EventDialog({
             onError={onError}
           />
           <Roster snapshot={snapshot} eventId={existing.id} />
+          {existing.place_id !== null && (
+            <Venue snapshot={snapshot} event={existing} onChanged={onChanged} onError={onError} />
+          )}
         </>
       )}
 
@@ -77,6 +81,12 @@ export function EventDialog({
     </Shell>
   );
 }
+
+const ATTENDANCE_LABELS: Record<SelfAttendanceChoice, string> = {
+  in: 'Going',
+  out: 'Not going',
+  undecided: 'Undecided',
+};
 
 function Attendance({
   snapshot,
@@ -122,13 +132,13 @@ function Attendance({
             type="button"
             aria-pressed={current === choice}
             onClick={() => choose(choice)}
-            className={`rounded-full border px-3 py-1 text-sm capitalize ${
+            className={`rounded-full border px-3 py-1 text-sm ${
               current === choice
                 ? 'border-slate-900 bg-slate-900 text-white'
                 : 'border-slate-300 bg-white text-slate-700'
             } disabled:opacity-50`}
           >
-            {choice}
+            {ATTENDANCE_LABELS[choice]}
           </button>
         ))}
       </div>
@@ -174,6 +184,30 @@ function Roster({
         </ul>
       )}
     </div>
+  );
+}
+
+function Venue({
+  snapshot,
+  event,
+  onChanged,
+  onError,
+}: {
+  snapshot: SnapshotResponse;
+  event: SnapshotResponse['events'][number];
+  onChanged: () => void;
+  onError: (error: unknown) => void;
+}): React.ReactElement | null {
+  const place = snapshot.places.find((row) => row.id === event.place_id);
+  if (place === undefined) return null;
+  return (
+    <VenueCorrection
+      snapshot={snapshot}
+      place={place}
+      date={event.local_date}
+      onChanged={onChanged}
+      onError={onError}
+    />
   );
 }
 

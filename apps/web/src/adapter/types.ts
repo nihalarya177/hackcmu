@@ -14,9 +14,11 @@ import type {
   ListMessagesQuery,
   ListMessagesResponse,
   PatchEventRequest,
+  PatchPlaceRequest,
   PatchSelfPersonRequest,
   PatchTripRequest,
   PersonMutationResponse,
+  PlaceMutationResponse,
   PersonResource,
   ProcessingStatusResponse,
   PutSelfAttendanceRequest,
@@ -67,7 +69,14 @@ export type DemoControls = {
   /** Restores the seeded dataset. Touches demo storage only. */
   reset(): void;
   /** The named scripted outcomes, and which have already played. */
-  scenarios(): { id: string; title: string; hint: string; applied: boolean }[];
+  scenarios(): {
+    id: string;
+    title: string;
+    hint: string;
+    applied: boolean;
+    /** False while a scenario it depends on has not played yet. */
+    eligible: boolean;
+  }[];
   /** Plays one scenario by name, for rehearsal, bypassing keyword matching. */
   runScenario(id: string): void;
   /** Notifies on any demo state change so callers can invalidate their cache. */
@@ -130,6 +139,15 @@ export type PlannerAdapter = {
     eventId: string,
     body: PutSelfAttendanceRequest,
   ): Promise<AttendanceMutationResponse>;
+
+  patchPlace(
+    tripId: string,
+    placeId: string,
+    body: PatchPlaceRequest,
+  ): Promise<PlaceMutationResponse>;
+
+  /** A calendar file for the caller's own attended events. Never anyone else's. */
+  exportSelfCalendar(tripId: string): Promise<{ filename: string; content: string }>;
 
   requestProcessing(
     tripId: string,

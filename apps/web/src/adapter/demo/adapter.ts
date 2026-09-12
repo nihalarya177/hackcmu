@@ -14,19 +14,22 @@ import {
   type PatchTripRequest,
   type PutSelfAttendanceRequest,
   type RequestProcessingResponse,
+  type BotActionResource,
+  type PatchPlaceRequest,
+  type PlaceResource,
 } from '@trip/contracts';
 import { ApiRequestError, UnsupportedOperationError } from '../../lib/apiError';
 import type { Capabilities, DemoControls, PlannerAdapter } from '../types';
 import { DEMO_TRIP_ID } from './dataset';
-import { matchScenario, scenarioById, SCENARIOS, type Scenario } from './scenarios';
-import { deriveSnapshot } from './derive';
+import { isEligible, matchScenario, scenarioById, SCENARIOS, type Scenario } from './scenarios';
+import { attendedEvents, deriveSnapshot } from './derive';
+import { buildCalendar } from './ics';
 import type { DemoState } from './state';
 import { DemoStore } from './store';
 
 /**
- * Implemented against the simulated state today. Place search, stored bot
- * actions and export are DEMO-2/DEMO-3 work and stay false until they exist,
- * so no control is offered with nothing behind it.
+ * `places` covers manual correction only: there is no search provider behind
+ * the demo, and none is claimed.
  */
 const DEMO_CAPABILITIES: Capabilities = {
   chat: true,
@@ -36,10 +39,10 @@ const DEMO_CAPABILITIES: Capabilities = {
   manualEvents: true,
   eventRestore: true,
   selfAttendance: true,
-  places: false,
-  botActions: false,
+  places: true,
+  botActions: true,
   requestProcessing: true,
-  export: false,
+  export: true,
   participantSwitching: true,
   reset: true,
 };
@@ -146,6 +149,8 @@ export function createDemoAdapter(
     let events = [...state.events];
     let attendance = [...state.attendance];
     let places = [...state.places];
+    let deletions = [...state.deletions];
+    let actions: BotActionResource[] = [...state.actions];
     const at = nowIso();
 
     for (const op of scenario.ops) {
@@ -203,6 +208,90 @@ export function createDemoAdapter(
         continue;
       }
 
+      if (op.kind === 'suggest_remove') {
+        const target = events.find((event) => event.id === op.event_id);
+        if (target === undefined) {
+          throw new Error('the event this suggestion refers to is gone');
+        }
+        actions = [
+          ...actions,
+          {
+            id: newUuid(),
+            type: 'remove_suggestion',
+            status: 'pending',
+            available_choices: ['remove', 'keep'],
+            source_message_id: state.next_message_id,
+            target_event_id: target.id,
+            target_tombstone_id: null,
+            // Bound to this exact revision: a later edit makes it stale.
+            expected_event_revision: target.revision,
+            resolved_by_person_id: null,
+            created_at: at,
+            resolved_at: null,
+          },
+        ];
+        continue;
+      }
+
+      if (op.kind === 'revive') {
+        const tombstone = deletions.find((row) => row.event_id === op.event_id);
+        if (tombstone === undefined) throw new Error('there is nothing to bring back');
+        const revision = (BigInt(tombstone.revision) + 1n).toString();
+        // The original id is reopened, so references from chat still resolve.
+        const revived: EventResource = {
+          id: tombstone.event_id,
+          place_id: null,
+          label: tombstone.label,
+          local_date: tombstone.local_date,
+          start_minute: tombstone.start_minute,
+          end_minute: Math.min(tombstone.start_minute + 150, 1440),
+          starts_at: instant(state, tombstone.local_date, tombstone.start_minute),
+          ends_at: instant(
+            state,
+            tombstone.local_date,
+            Math.min(tombstone.start_minute + 150, 1440),
+          ),
+          price_cents: 18_000,
+          price_source: 'estimate',
+          created_by: 'llm',
+          created_by_person_id: null,
+          schedule_locked_by_human: false,
+          revision,
+          created_at: at,
+          updated_at: at,
+        };
+        assertOverlapRoom({ ...state, events }, revived);
+        events = [...events, revived];
+        attendance = [
+          ...attendance,
+          ...op.attendees.map((personId) => ({
+            event_id: revived.id,
+            person_id: personId,
+            state: 'in' as const,
+            set_by: 'llm' as const,
+            updated_at: at,
+          })),
+        ];
+        deletions = deletions.filter((row) => row.event_id !== op.event_id);
+        actions = [
+          ...actions,
+          {
+            id: newUuid(),
+            type: 'revival_undo',
+            status: 'pending',
+            available_choices: ['undo'],
+            source_message_id: state.next_message_id,
+            target_event_id: revived.id,
+            target_tombstone_id: tombstone.tombstone_id,
+            expected_event_revision: revision,
+            resolved_by_person_id: null,
+            created_at: at,
+            resolved_at: null,
+          },
+        ];
+        continue;
+      }
+
       places = places.map((place) =>
         place.id === op.place_id
           ? {
@@ -231,6 +320,8 @@ export function createDemoAdapter(
       events,
       attendance,
       places,
+      deletions,
+      actions,
       messages: [
         ...state.messages,
         botMessage(state, scenario.says, batchId, {
@@ -357,6 +448,91 @@ export function createDemoAdapter(
     return { state: 'queued', batch_id: batchId, queued: true };
   };
 
+  /** Remove/Keep and revival Undo, each bound to one event revision. */
+  const resolveStoredAction = (
+    state: DemoState,
+    action: BotActionResource,
+    choice: 'remove' | 'keep' | 'undo',
+  ): { calendar_version: string; action_id: string; status: 'applied' | 'dismissed' | 'stale' } => {
+    const target =
+      action.target_event_id === null
+        ? undefined
+        : state.events.find((event) => event.id === action.target_event_id);
+
+    const settleAction = (
+      status: 'applied' | 'dismissed' | 'stale',
+      changes: Partial<DemoState> = {},
+    ) => {
+      const next = commit(state, {
+        ...changes,
+        actions: (changes.actions ?? state.actions).map((row) =>
+          row.id === action.id
+            ? {
+                ...row,
+                status,
+                resolved_by_person_id: status === 'stale' ? null : self(state),
+                resolved_at: nowIso(),
+              }
+            : row,
+        ),
+      });
+      return { calendar_version: next.calendar_version, action_id: action.id, status };
+    };
+
+    // The event moved on since this action was stored, so it must not act.
+    if (
+      action.expected_event_revision !== null &&
+      (target === undefined || target.revision !== action.expected_event_revision)
+    ) {
+      return settleAction('stale');
+    }
+
+    if (choice === 'keep') return settleAction('dismissed');
+
+    if (choice === 'remove') {
+      if (target === undefined) return settleAction('stale');
+      return settleAction('applied', {
+        events: state.events.filter((row) => row.id !== target.id),
+        attendance: state.attendance.filter((row) => row.event_id !== target.id),
+        deletions: [
+          ...state.deletions,
+          {
+            event_id: target.id,
+            label: target.label,
+            local_date: target.local_date,
+            start_minute: target.start_minute,
+            reason: 'human' as const,
+            deleted_by_person_id: self(state),
+            deleted_at: nowIso(),
+            revision: (BigInt(target.revision) + 1n).toString(),
+            tombstone_id: newUuid(),
+          },
+        ],
+      });
+    }
+
+    // Undo puts the revival back the way it was: deleted, with its tombstone.
+    if (target === undefined) return settleAction('stale');
+    return settleAction('applied', {
+      events: state.events.filter((row) => row.id !== target.id),
+      attendance: state.attendance.filter((row) => row.event_id !== target.id),
+      deletions: [
+        ...state.deletions,
+        {
+          event_id: target.id,
+          label: target.label,
+          local_date: target.local_date,
+          start_minute: target.start_minute,
+          reason: 'human' as const,
+          deleted_by_person_id: self(state),
+          deleted_at: nowIso(),
+          revision: (BigInt(target.revision) + 1n).toString(),
+          tombstone_id: action.target_tombstone_id,
+        },
+      ],
+    });
+  };
+
   const demo: DemoControls = {
     tripId: DEMO_TRIP_ID,
     participants: () => store.state.members,
@@ -378,10 +554,14 @@ export function createDemoAdapter(
         title: scenario.title,
         hint: scenario.hint,
         applied: store.state.applied_scenarios.includes(scenario.id),
+        eligible: isEligible(scenario, store.state.applied_scenarios),
       })),
     runScenario: (id) => {
       const scenario = scenarioById(id);
       if (scenario === null) fail('NOT_FOUND', 'No such demo scenario');
+      if (!isEligible(scenario, store.state.applied_scenarios)) {
+        fail('UNPROCESSABLE', 'Another scenario has to play before this one');
+      }
       beginRun(store.state, scenario);
     },
     subscribe: (listener) => store.subscribe(listener),
@@ -399,7 +579,63 @@ export function createDemoAdapter(
     previewInvite: () => settle(() => unsupported('previewInvite')),
     joinTrip: () => settle(() => unsupported('joinTrip')),
     mintInvite: () => settle(() => unsupported('mintInvite')),
-    resolveAction: () => settle(() => unsupported('resolveAction')),
+    resolveAction: (tripId, actionId, body) =>
+      settle(() => {
+        const state = scoped(tripId);
+        requireVersion(state, body.expected_calendar_version);
+        const action = state.actions.find((row) => row.id === actionId);
+        if (action === undefined) fail('NOT_FOUND', 'No such action');
+        if (action.status !== 'pending') {
+          // One-shot: a resolved action never operates a second time.
+          return { calendar_version: state.calendar_version, action_id: actionId, status: 'stale' };
+        }
+        return resolveStoredAction(state, action, body.choice);
+      }),
+
+    patchPlace: (tripId, placeId, body: PatchPlaceRequest) =>
+      settle(() => {
+        const state = scoped(tripId);
+        requireVersion(state, body.expected_calendar_version);
+        if (body.choice.kind !== 'manual') {
+          // There is no search provider behind the demo, so there are no
+          // server-issued candidates to replay.
+          unsupported('place search');
+        }
+        const current = state.places.find((place) => place.id === placeId);
+        if (current === undefined) fail('NOT_FOUND', 'No such place');
+
+        const choice = body.choice;
+        const updated: PlaceResource = {
+          ...current,
+          label: choice.label ?? current.label,
+          address: choice.address === undefined ? current.address : choice.address,
+          coordinate: choice.coordinate === undefined ? current.coordinate : choice.coordinate,
+          hours_days: choice.hours_days ?? current.hours_days,
+          resolution: 'manual',
+          hours_provenance: choice.hours_days === undefined ? current.hours_provenance : 'human',
+          hours_observed_at: choice.hours_days === undefined ? current.hours_observed_at : nowIso(),
+          // A human correction is never overwritten by anything automatic.
+          human_override: true,
+          revision: (BigInt(current.revision) + 1n).toString(),
+        };
+        const next = commit(state, {
+          places: state.places.map((place) => (place.id === placeId ? updated : place)),
+        });
+        return { calendar_version: next.calendar_version, place: updated };
+      }),
+
+    exportSelfCalendar: (tripId) =>
+      settle(() => {
+        const state = scoped(tripId);
+        const person = state.members.find((row) => row.id === state.active_person_id);
+        if (person === undefined) fail('NOT_FOUND', 'No such participant');
+        return buildCalendar({
+          trip: state.trip,
+          events: attendedEvents(state, person.id),
+          places: state.places,
+          personName: person.display_name,
+        });
+      }),
     requestProcessing: (tripId) => settle(() => beginRun(scoped(tripId), null)),
 
     snapshot: (tripId) => settle(() => deriveSnapshot(scoped(tripId), nowIso())),

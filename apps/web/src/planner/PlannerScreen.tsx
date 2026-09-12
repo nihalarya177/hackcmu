@@ -1,16 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, MessagesSquare, Plus, RotateCcw, Sparkles } from 'lucide-react';
+import {
+  CalendarDays,
+  Download,
+  Map,
+  MessagesSquare,
+  Plus,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
 import type { SnapshotResponse } from '@trip/contracts';
 import { useAdapter } from '../adapter/context';
 import { ApiRequestError, UnsupportedOperationError } from '../lib/apiError';
+import { ActionList } from './ActionList';
 import { BudgetPanel } from './BudgetPanel';
 import { CalendarPanel } from './CalendarPanel';
 import { ChatPanel } from './ChatPanel';
 import { EventDialog, type EventDialogMode } from './EventDialog';
+import { HistoryPanel } from './HistoryPanel';
+import { MapPanel } from './MapPanel';
 import { commandKey } from './format';
 import { useDemoInvalidation, useMessages, useRefreshPlanner, useSnapshot } from './usePlanner';
 
-type Tab = 'chat' | 'calendar';
+type Tab = 'chat' | 'calendar' | 'map';
+
+/** Visible words, so the accessible name is not a CSS transform. */
+const TAB_LABELS: Record<Tab, string> = { chat: 'Chat', calendar: 'Calendar', map: 'Map' };
 
 /**
  * The planner itself: budgets down the left, chat and calendar side by side on
@@ -77,8 +91,9 @@ export function PlannerScreen({ tripId }: { tripId: string }): React.ReactElemen
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
-      <div className="min-h-0 overflow-y-auto md:w-72 md:shrink-0">
+      <div className="grid min-h-0 gap-4 overflow-y-auto md:w-72 md:shrink-0">
         <BudgetPanel snapshot={data} onChanged={onChanged} onError={onError} />
+        <HistoryPanel snapshot={data} onChanged={onChanged} onError={onError} />
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
@@ -90,6 +105,8 @@ export function PlannerScreen({ tripId }: { tripId: string }): React.ReactElemen
           onChanged={onChanged}
           onError={onError}
         />
+
+        <ActionList snapshot={data} onChanged={onChanged} onError={onError} />
 
         {notice !== null && (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -115,12 +132,19 @@ export function PlannerScreen({ tripId }: { tripId: string }): React.ReactElemen
             />
           </div>
           <div
-            className={`flex min-h-0 flex-col md:min-w-0 md:flex-1 ${tab === 'calendar' ? 'flex-1' : 'hidden'} md:flex`}
+            className={`flex min-h-0 flex-col md:min-w-0 md:flex-1 ${tab === 'calendar' ? 'flex-1' : 'hidden'} ${tab === 'map' ? 'md:hidden' : 'md:flex'}`}
           >
             <CalendarPanel
               snapshot={data}
               onSelectEvent={(eventId) => setDialog({ kind: 'edit', eventId })}
             />
+          </div>
+          {/* The map replaces the calendar column rather than crowding it, and
+              chat stays put so the conversation is never lost. */}
+          <div
+            className={`flex min-h-0 flex-col md:min-w-0 ${tab === 'map' ? 'flex-1 md:flex md:flex-1' : 'hidden'}`}
+          >
+            <MapPanel snapshot={data} />
           </div>
         </div>
       </div>
@@ -167,23 +191,25 @@ function Toolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex rounded-lg border border-slate-300 p-0.5 md:hidden">
-        {(['chat', 'calendar'] as const).map((name) => (
+      <div className="flex rounded-lg border border-slate-300 p-0.5">
+        {(['chat', 'calendar', 'map'] as const).map((name) => (
           <button
             key={name}
             type="button"
             onClick={() => onTab(name)}
             aria-pressed={tab === name}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm capitalize ${
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${
               tab === name ? 'bg-slate-900 text-white' : 'text-slate-700'
             }`}
           >
             {name === 'chat' ? (
               <MessagesSquare aria-hidden className="size-4" />
-            ) : (
+            ) : name === 'calendar' ? (
               <CalendarDays aria-hidden className="size-4" />
+            ) : (
+              <Map aria-hidden className="size-4" />
             )}
-            {name}
+            {TAB_LABELS[name]}
           </button>
         ))}
       </div>
@@ -211,8 +237,44 @@ function Toolbar({
         </button>
       )}
 
+      <ExportButton snapshot={snapshot} onError={onError} />
+
       <ProcessingNote snapshot={snapshot} onRetry={update} />
     </div>
+  );
+}
+
+/** Downloads the caller's own attended events as a real calendar file. */
+function ExportButton({
+  snapshot,
+  onError,
+}: {
+  snapshot: SnapshotResponse;
+  onError: (error: unknown) => void;
+}): React.ReactElement | null {
+  const adapter = useAdapter();
+  if (!adapter.capabilities.export) return null;
+
+  const download = (): void => {
+    void adapter.exportSelfCalendar(snapshot.trip.id).then((file) => {
+      const url = URL.createObjectURL(new Blob([file.content], { type: 'text/calendar' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, onError);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={download}
+      className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
+    >
+      <Download aria-hidden className="size-4" />
+      My calendar
+    </button>
   );
 }
 
@@ -243,6 +305,49 @@ function ProcessingNote({
     return <span className="text-sm text-slate-500">Reading the conversation…</span>;
   }
   return null;
+}
+
+/**
+ * Named scenarios, for rehearsing without having to type the right words.
+ * Pressing one plays exactly what "Update plan" would have played, so the
+ * rehearsal and the live demo take the same path.
+ */
+function ScenarioMenu(): React.ReactElement | null {
+  const adapter = useAdapter();
+  const demo = adapter.demo;
+  const [open, setOpen] = useState(false);
+  if (demo === null) return null;
+  const scenarios = demo.scenarios();
+
+  return (
+    <span className="relative">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="underline">
+        Scenarios
+      </button>
+      {open && (
+        <ul className="absolute bottom-6 left-0 z-20 max-h-72 w-80 overflow-y-auto rounded-lg border border-amber-200 bg-white p-1 shadow-lg">
+          {scenarios.map((scenario) => (
+            <li key={scenario.id}>
+              <button
+                type="button"
+                disabled={!scenario.eligible}
+                onClick={() => {
+                  demo.runScenario(scenario.id);
+                  setOpen(false);
+                }}
+                className="w-full rounded px-2 py-1.5 text-left hover:bg-amber-50 disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <span className="block text-slate-800">{scenario.title}</span>
+                <span className="block text-[11px] text-slate-500">
+                  {scenario.applied ? 'already played' : scenario.hint}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </span>
+  );
 }
 
 /** Demo-only controls, kept visually apart from the product itself. */
@@ -277,6 +382,8 @@ function DemoBar({ snapshot }: { snapshot: SnapshotResponse }): React.ReactEleme
           {person.display_name}
         </button>
       ))}
+      <ScenarioMenu />
+
       <button
         type="button"
         onClick={() => demo.reset()}

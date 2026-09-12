@@ -64,5 +64,7 @@ export function createLiveAdapter(): PlannerAdapter {
     setSelfAttendance: () => unsupported('setSelfAttendance'),
     requestProcessing: () => unsupported('requestProcessing'),
     resolveAction: () => unsupported('resolveAction'),
+    patchPlace: () => unsupported('patchPlace'),
+    exportSelfCalendar: () => unsupported('exportSelfCalendar'),
   };
 }

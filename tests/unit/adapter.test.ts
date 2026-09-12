@@ -200,12 +200,13 @@ describe('demo adapter', () => {
 
   it('reports an unimplemented operation as unavailable rather than faking it', async () => {
     const adapter = createDemoAdapter(memoryStorage());
-    expect(adapter.capabilities.botActions).toBe(false);
+    // There is no search provider behind the demo, so candidate selection —
+    // which replays a server-issued reference — cannot be honoured.
     await expect(
-      adapter.resolveAction(DEMO_TRIP_ID, PERSON.ana, {
+      adapter.patchPlace(DEMO_TRIP_ID, PERSON.ana, {
         idempotency_key: idem,
         expected_calendar_version: '1',
-        choice: 'keep',
+        choice: { kind: 'candidate', candidate_ref: 'not-a-real-ref' },
       }),
     ).rejects.toBeInstanceOf(UnsupportedOperationError);
   });

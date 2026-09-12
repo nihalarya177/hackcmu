@@ -15,6 +15,8 @@ export type ScenarioId =
   | 'dinner-overspend'
   | 'double-booking'
   | 'phipps-closed'
+  | 'suggest-remove'
+  | 'revive-dinner'
   | 'provider-failure';
 
 export type ScenarioOp =
@@ -30,7 +32,11 @@ export type ScenarioOp =
       attendees: string[];
     }
   | { kind: 'add_attendee'; event_id: string; person_id: string }
-  | { kind: 'set_hours'; place_id: string; date: string; intervals: [number, number][] };
+  | { kind: 'set_hours'; place_id: string; date: string; intervals: [number, number][] }
+  /** Proposes a removal. Nothing is deleted until a person presses Remove. */
+  | { kind: 'suggest_remove'; event_id: string }
+  /** Reopens a deleted event under its original id, with an Undo bound to it. */
+  | { kind: 'revive'; event_id: string; attendees: string[] };
 
 export type Scenario = {
   id: ScenarioId;
@@ -44,6 +50,8 @@ export type Scenario = {
   /** The chat line the simulated planner posts when it commits. */
   says: string;
   ops: ScenarioOp[];
+  /** Scenarios that must have played first, because this one builds on them. */
+  requires?: ScenarioId[];
   /** Fails the first attempt, so manual Retry has something to retry. */
   failsFirst?: boolean;
 };
@@ -162,6 +170,32 @@ export const SCENARIOS: readonly Scenario[] = [
     ops: [{ kind: 'set_hours', place_id: PLACE.phipps, date: SUNDAY, intervals: [] }],
   },
   {
+    id: 'suggest-remove',
+    title: 'The planner suggests dropping the dinner',
+    hint: 'Try: "maybe we skip the expensive dinner".',
+    triggers: ['skip'],
+    evidence: [],
+    requires: ['dinner-overspend'],
+    says: 'Ben is over budget because of the dinner. Dropping it is one option — nothing has been changed, so decide with the buttons on this notice.',
+    ops: [{ kind: 'suggest_remove', event_id: EVENT.dinner }],
+  },
+  {
+    id: 'revive-dinner',
+    title: 'The group brings the dinner back',
+    hint: 'Try: "actually, bring the dinner back" after removing it.',
+    triggers: ['bring', 'back'],
+    evidence: [],
+    requires: ['suggest-remove'],
+    says: 'The dinner is back on, under its original entry. Undo is on this notice until the event changes again.',
+    ops: [
+      {
+        kind: 'revive',
+        event_id: EVENT.dinner,
+        attendees: [PERSON.ana, PERSON.cleo, PERSON.dev],
+      },
+    ],
+  },
+  {
     id: 'provider-failure',
     title: 'The extraction fails once, then succeeds on retry',
     hint: 'Try: "plan something for Sunday morning".',
@@ -183,10 +217,16 @@ export function matchScenario(transcript: string, applied: readonly string[]): S
   return (
     SCENARIOS.find(
       (scenario) =>
-        !applied.includes(scenario.id) &&
+        isEligible(scenario, applied) &&
         scenario.triggers.every((keyword) => haystack.includes(keyword)),
     ) ?? null
   );
+}
+
+/** Unplayed, and everything it builds on has already happened. */
+export function isEligible(scenario: Scenario, applied: readonly string[]): boolean {
+  if (applied.includes(scenario.id)) return false;
+  return (scenario.requires ?? []).every((required) => applied.includes(required));
 }
 
 export function scenarioById(id: string): Scenario | null {

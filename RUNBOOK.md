@@ -102,6 +102,41 @@ than offered and then failing.
 | Live mode shows a configuration error | Expected without `.env`. Press **Open the demo instead**. |
 | Anything unexplained | Reload the page, then **Reset demo**. |
 
+## Deploying to Vercel
+
+`vercel.json` is configured and the build output has been verified against
+those rewrite rules locally. **It has never actually been deployed**, and
+deploying needs Kartik's Vercel account, so it is not done here.
+
+```bash
+npm i -g vercel      # the CLI is not installed on this machine
+vercel login
+vercel link          # pick the target project
+vercel --prod
+```
+
+Configuration: build `npm run build`, install `npm ci`, output
+`apps/web/dist`, with `/api/*` and `/health/*` rewritten to the Node function
+and everything else falling back to `index.html`. Give the project an LTS Node
+runtime (22.x) rather than matching this machine's Node 25.
+
+**Demo mode does not depend on the deployment's backend.** Verified by serving
+the production bundle under those exact rewrite rules with the function
+returning 502 for every `/api` and `/health` request: the planner loads, Update
+plan runs, the map draws, the export downloads, and a deep link falls back to
+the app. Set no environment variables at all and demo mode still works — the
+build succeeds without them and live mode reports the missing configuration.
+
+For live mode on the deployment, set `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_PUBLISHABLE_KEY` (build-time, public) plus the server entries
+from `.env.example`, and verify separately:
+
+- anonymous sign-in reaches Supabase,
+- `GET /health/ready` answers through the rewrite,
+- creating a trip persists and returns a snapshot.
+
+Until those pass on the deployment, present Demo mode.
+
 ## Verification
 
 ```bash

@@ -173,6 +173,8 @@ Demo state (plan_v2 DATA-1, part of DEMO-1): three-day Pittsburgh trip, four par
 
 Core screens (plan_v2 UI-1, UI-2, QA-1): the planner is now the first screen, defaulting to Demo mode because it needs no credentials. `apps/web/src/planner/` holds the budget panel, chat, FullCalendar Standard timeGrid, event dialog with self-only attendance, and live onboarding. Loading, empty, failure and STALE_VERSION states are handled; unsent drafts and both panels survive tab switching. Verified with `./scripts/verify.sh` 7/7 including `RUN_E2E=1` (77 unit, 50 integration, 7 Playwright), with the required journey — four-person trip -> agreement -> Update plan -> event -> attendance change -> budget update — as a standing e2e test. Not yet built: map, .ics export, stored bot actions, place search, invite sharing in demo.
 
+Demo breadth, integration and freeze (plan_v2 DEMO-1 to DEMO-3, QA-2, SHIP-1 to SHIP-4): map, stored actions, revival/Undo, venue correction and real `.ics` export are implemented and tested; `RUNBOOK.md` records startup, the ten-step rehearsal, capabilities, limitations, recovery and the Vercel procedure. Verdict: **Prototype ready** (demo only). Verified with `./scripts/verify.sh` 7/7 with `RUN_E2E=1` (89 unit, 50 integration, 14 Playwright), two identical clean rehearsals, no horizontal overflow at 1440/1024/390, mode isolation both ways, and the production bundle driven under vercel.json's rewrites with every backend request failing. Not deployed: the Vercel CLI is not installed and deployment needs Kartik's account. Live mode remains M0-only.
+
 When claimed, record: task ID, owner, scope, dependencies, status, verification evidence, and next handoff. Keep unfinished checkboxes open.
 
 ## Blockers and Verification Debt

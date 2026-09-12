@@ -58,9 +58,13 @@ async function request<T extends z.ZodType>(
         fieldErrors: error.field_errors,
       });
     }
-    throw new ApiRequestError('MALFORMED_RESPONSE', 'Unexpected error response', {
-      status: response.status,
-    });
+    // Not a contract error body at all — a dead function, a proxy, or an
+    // outage page. Say which, rather than leaving the user with "unexpected".
+    throw new ApiRequestError(
+      'MALFORMED_RESPONSE',
+      `The server returned an unexpected response (HTTP ${response.status}).`,
+      { status: response.status },
+    );
   }
 
   const parsed = schema.safeParse(payload);

@@ -159,7 +159,9 @@ Do not implement these while P0 remains unfinished: MongoDB migration, Railway h
 
 No coding task is currently claimed.
 
-Completed this session: **M0 F1-F6** (Backend), with the F3 contract review by Frontend. Verified with `./scripts/verify.sh` (6/6), 44 unit tests, 50 real-database integration tests, 1 Playwright end-to-end test, plus a live two-session walkthrough against Supabase anonymous Auth. `package-lock.json` and the new workspace directories are present but **not yet committed**.
+Worktree consolidation (2026-09-12): the three parallel worktree agents (`demo/backend`, `demo/scenarios`, `demo/ui`) produced **no committed work, no working-tree changes and no stashes**; all three branches are still at `b72f500`. Their sessions have exited. Nothing was integrated because there was nothing to integrate. Worktrees and branches are retained, not deleted. Work now proceeds sequentially in the primary workspace on `demo-mvp`.
+
+Completed this session: **M0 F1-F6** (Backend), with the F3 contract review by Frontend. Verified with `./scripts/verify.sh` (6/6), 44 unit tests, 50 real-database integration tests, 1 Playwright end-to-end test, plus a live two-session walkthrough against Supabase anonymous Auth. `package-lock.json` and the workspace directories are committed as `b72f500` ("M0") on `demo-mvp`.
 
 Next owner: Backend and Frontend can now work in parallel on **M1**. Backend starts P2 and P3 (event and attendance mutations on the existing mutation protocol, then the deterministic domain services). Frontend starts P1 and P5 against the frozen contracts, using `apps/web/src/lib/api.ts` and `design/references/` for direction. P4 depends on the realtime row contracts and `compareVersions` added during the contract review; do not reimplement either.
 

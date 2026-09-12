@@ -7,6 +7,9 @@ export interface Candidate {
   lat: number | null;
   lon: number | null;
   providerPlaceId: string | null;
+  /** The geocoder's own opinion of the match, 0 to 1. Often 0 for a bad hit. */
+  confidence: number | null;
+  categories: string[];
   raw: unknown;
 }
 
@@ -44,14 +47,23 @@ export async function searchPlaces(
   url.searchParams.set('apiKey', config.apiKey);
 
   const payload = await call<{ results?: Record<string, unknown>[] }>(url);
-  return (payload.results ?? []).map((row) => ({
-    label: asString(row['name']) ?? asString(row['address_line1']) ?? query,
-    address: asString(row['formatted']),
-    lat: asNumber(row['lat']),
-    lon: asNumber(row['lon']),
-    providerPlaceId: asString(row['place_id']),
-    raw: row,
-  }));
+  return (payload.results ?? []).map((row) => {
+    const rank = row['rank'] as { confidence?: unknown } | undefined;
+    return {
+      label: asString(row['name']) ?? asString(row['address_line1']) ?? query,
+      address: asString(row['formatted']),
+      lat: asNumber(row['lat']),
+      lon: asNumber(row['lon']),
+      providerPlaceId: asString(row['place_id']),
+      confidence: asNumber(rank?.confidence),
+      categories: Array.isArray(row['categories'])
+        ? (row['categories'] as unknown[]).filter(
+            (value): value is string => typeof value === 'string',
+          )
+        : [],
+      raw: row,
+    };
+  });
 }
 
 export async function placeDetails(

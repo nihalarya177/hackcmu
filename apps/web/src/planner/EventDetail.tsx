@@ -291,9 +291,18 @@ function Fields({
       expected_calendar_version: snapshot.calendar_version,
     };
     // A price a person typed is one a person stands behind.
+    // Only a price a person actually changed is one they stand behind. Saving
+    // an unrelated edit must not quietly promote the planner's estimate into a
+    // confirmed figure: the budget panel reports the two separately.
+    const priceUnchanged = existing !== undefined && priceCents === existing.price_cents;
     const priceFields = {
       price_cents: priceCents,
-      price_source: priceCents === null ? null : ('confirmed' as const),
+      price_source:
+        priceCents === null
+          ? null
+          : priceUnchanged && existing.price_source !== null
+            ? existing.price_source
+            : ('confirmed' as const),
     };
     const named = venue.trim();
 

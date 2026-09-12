@@ -295,6 +295,17 @@ async function runBatch(
           batch.id,
           `Updated the plan from the conversation: ${outcome.accepted} change${outcome.accepted === 1 ? '' : 's'}.`,
         );
+      } else if (outcome.notices.length === 0) {
+        // Saying nothing at all is indistinguishable from being broken, and
+        // that is exactly how it reads to the people waiting on it.
+        await postBotMessage(
+          tx,
+          tripRow,
+          batch.id,
+          outcome.rejections.length === 0
+            ? 'I read the new messages and found nothing to put on the calendar yet.'
+            : `I read the new messages but could not act on them: ${summarize(outcome.rejections)}.`,
+        );
       }
 
       // The watermark advances exactly to the captured upper bound, never to
@@ -410,6 +421,28 @@ async function finishBatch(
       processingUpdatedAt: new Date(),
     })
     .where(eq(trip.id, batch.tripId));
+}
+
+/** Rejection codes as something a person can actually act on. */
+function summarize(rejections: { code: string }[]): string {
+  const reasons = new Map<string, string>([
+    ['attendee_count_below_minimum', 'only one person had said they were going'],
+    ['insufficient_consent', 'not enough people had agreed'],
+    ['evidence_not_authored_by_person', 'somebody was being signed up by someone else'],
+    ['no_current_batch_trigger', 'nothing in the latest messages asked for it'],
+    ['date_outside_trip', 'the day was outside the trip'],
+    ['duplicate_of_active_event', 'it is already on the calendar'],
+    [
+      'tombstone_requires_explicit_revival',
+      'it was removed earlier, so ask for it back explicitly',
+    ],
+    ['schedule_locked_by_human', 'someone had set that time by hand'],
+    ['human_decision_protected', "it would have overturned somebody's own choice"],
+    ['overlap_capacity_exceeded', 'too many things already run at that time'],
+    ['invalid_interval', 'the times did not make sense'],
+  ]);
+  const seen = [...new Set(rejections.map((row) => row.code))];
+  return seen.map((code) => reasons.get(code) ?? code.replace(/_/g, ' ')).join('; ');
 }
 
 function errorCodeOf(error: unknown): string {

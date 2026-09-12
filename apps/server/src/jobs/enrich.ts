@@ -3,14 +3,20 @@ import { and, eq, sql } from 'drizzle-orm';
 import { PROCESSING_LIMITS } from '@trip/contracts';
 import { place, trip, type Database } from '@trip/db';
 import { normalizeHours } from '../places/hours.js';
-import { placeDetails, searchPlaces } from '../places/geoapify.js';
+import { chooseCandidate } from '../places/choose.js';
+import { placeDetails, searchPlaces, type Candidate } from '../places/geoapify.js';
 import { enumerateTripDates } from '../domain/tripDates.js';
 
 export interface EnrichConfig {
   apiKey: string;
   enabled: boolean;
   dailyRequestLimit: number;
+  /** Used to pick between geocoder results. Optional; ranking is the fallback. */
+  chooser: { apiKey: string; model: string } | null;
 }
+
+/** Below this the geocoder is telling us it does not really know. */
+const MIN_CONFIDENCE = 0.5;
 
 /**
  * One enrichment step: resolve a venue somebody named in words.
@@ -66,9 +72,10 @@ export async function enrichOnce(db: Database, config: EnrichConfig): Promise<bo
       center: { lat: tripRow.destinationLat, lon: tripRow.destinationLon },
     };
 
-    const candidates = await searchPlaces(provider, query, 1);
-    const best = candidates[0];
-    if (best === undefined || best.lat === null || best.lon === null) {
+    const best = await resolveVenue(config, provider, query);
+    if (best === null) {
+      // Nothing we are willing to stand behind. An unresolved stop says so;
+      // a confidently wrong pin does not.
       await markUnresolved(db, placeId, leaseToken, claimedRevision);
       return true;
     }
@@ -93,7 +100,9 @@ export async function enrichOnce(db: Database, config: EnrichConfig): Promise<bo
       const updated = await tx
         .update(place)
         .set({
-          label: best.label,
+          // The label somebody chose is kept. Replacing "Pittsburgh Zoo" with
+          // whatever the geocoder's index calls that point is how the plan
+          // ends up describing a footpath.
           address: best.address ?? details?.address ?? null,
           lat: coordinate.lat,
           lon: coordinate.lon,
@@ -145,6 +154,52 @@ export async function enrichOnce(db: Database, config: EnrichConfig): Promise<bo
   }
 
   return true;
+}
+
+/**
+ * Finds the venue somebody meant.
+ *
+ * The geocoder's own ranking is unreliable for casual phrases — searching
+ * "pittsburgh zoo" returns Old Zoo Trail at confidence 0 ahead of the zoo
+ * itself at confidence 1 — so several results are fetched and the model picks
+ * between them. It only ever picks; the coordinates are always the geocoder's.
+ * If the model is unavailable, confidence alone decides.
+ */
+async function resolveVenue(
+  config: EnrichConfig,
+  provider: { apiKey: string; center: { lat: number; lon: number } },
+  query: string,
+): Promise<Candidate | null> {
+  const usable = (row: Candidate | undefined): row is Candidate =>
+    row !== undefined && row.lat !== null && row.lon !== null;
+
+  const candidates = (await searchPlaces(provider, query, 5)).filter(usable);
+  if (candidates.length === 0) return null;
+
+  if (config.chooser !== null) {
+    const choice = await chooseCandidate(config.chooser, query, candidates);
+    if (choice.index !== null) return candidates[choice.index] ?? null;
+
+    // None of them was the place, but the model knows its proper name.
+    if (choice.retryQuery !== null && choice.retryQuery.toLowerCase() !== query.toLowerCase()) {
+      const second = (await searchPlaces(provider, choice.retryQuery, 5)).filter(usable);
+      if (second.length > 0) {
+        const again = await chooseCandidate(config.chooser, query, second);
+        if (again.index !== null) return second[again.index] ?? null;
+        return byConfidence(second);
+      }
+    }
+    return null;
+  }
+
+  return byConfidence(candidates);
+}
+
+/** Best-ranked result, but only if the geocoder is actually confident. */
+function byConfidence(candidates: Candidate[]): Candidate | null {
+  const best = [...candidates].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0];
+  if (best === undefined) return null;
+  return (best.confidence ?? 0) >= MIN_CONFIDENCE ? best : null;
 }
 
 /** The provider had nothing usable. The stop stays honestly unresolved. */

@@ -61,6 +61,10 @@ async function main(): Promise<void> {
           apiKey: config.geoapifyApiKey ?? '',
           enabled: config.placesEnabled && config.geoapifyApiKey !== null,
           dailyRequestLimit: config.placesDailyRequestLimit,
+          chooser:
+            config.geminiApiKey !== null && config.llmModel !== null
+              ? { apiKey: config.geminiApiKey, model: config.llmModel }
+              : null,
         });
 
         await tick(database.db, {

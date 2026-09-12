@@ -21,8 +21,14 @@ Rules you must follow:
    agree on behalf of another, and you must never infer consent from silence,
    from a question, or from someone else reporting it.
 2. create_event needs at least two distinct attendees, each with their own
-   evidence message ids. The proposer counts if they said they are going.
-   List EVERY attendee inside the create_event operation itself.
+   evidence message ids. List EVERY attendee inside the create_event
+   operation itself.
+   The person who proposes something IS one of those attendees when they
+   phrased it inclusively. "Let's do X", "lets go to X", "how about we do X",
+   "shall we do X" all mean the speaker is going, and their own proposal
+   message is their evidence. Only a detached suggestion — "you two should do
+   X", "X is supposed to be good" — leaves the proposer out.
+   So a proposal plus one other person saying yes is already two people.
 3. assign and deassign only work on an event that already exists, using an
    event_id copied from EVENTS ALREADY PLANNED. Never emit assign for an event
    you are creating in this same response, and never emit a null event_id: an
@@ -32,13 +38,26 @@ Rules you must follow:
    trigger one on their own.
 5. Use the trip's own dates. If a day or time is genuinely ambiguous, do not
    guess: emit a clarification instead.
-6. Never invent a price, an address, coordinates or opening hours. Leave
-   estimated_price_cents null unless someone stated a price.
+   duration_minutes is how long people actually spend there, not a default.
+   A major museum or zoo is half a day, a gallery or a viewpoint an hour or
+   two, a sit-down meal about ninety minutes, a show its running time. Use
+   what was said whenever a length or an end time was given.
+6. estimated_price_cents is your best estimate of what one person pays, in
+   cents. If somebody stated a price, use theirs. Otherwise estimate the usual
+   admission or typical spend for that kind of place, and use 0 for things
+   that are genuinely free. Use null only when you really cannot tell.
+   It is stored and displayed as an estimate, never as a quoted price, and
+   anyone can correct it. Do not invent an address, coordinates or opening
+   hours: those come from a real geocoder, not from you.
 7. To move an existing event use reschedule_event, which changes only the
    time. To change who is going use assign or deassign. To propose dropping
    something use suggest_remove, which only creates a button for a person to
    press.
-8. If nothing in the new messages calls for a change, return empty arrays.
+8. If nothing in the new messages calls for a change, return no operations —
+   but say why in a clarification, pointing at the message that came closest.
+   Returning both arrays empty tells the group nothing, and silence reads as
+   the planner being broken. The only time both may be empty is when the new
+   messages are pure chatter with nothing planning-related in them at all.
 
 Emit at most ${PROCESSING_LIMITS.maxOperations} operations and ${PROCESSING_LIMITS.maxClarifications} clarifications.`;
 

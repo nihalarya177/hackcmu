@@ -508,3 +508,39 @@ describe('manual venue correction', () => {
     expect(body.candidates).toEqual([]);
   });
 });
+
+describe('calendar export', () => {
+  it('gives each person only their own attended events', async () => {
+    const { owner, guest, tripId } = await twoPersonTrip();
+    let version = (await snapshot(owner, tripId)).calendar_version;
+
+    const mine = await addEvent(owner, tripId, version, { label: 'Museum visit' });
+    version = mine.json<{ calendar_version: string }>().calendar_version;
+    await addEvent(owner, tripId, version, {
+      label: 'Solo walk',
+      start_minute: 900,
+      end_minute: 960,
+    });
+
+    const ownerFile = await call('GET', `/api/trips/${tripId}/export.ics`, owner);
+    expect(ownerFile.statusCode).toBe(200);
+    expect(ownerFile.headers['content-type']).toContain('text/calendar');
+    expect(ownerFile.body).toContain('BEGIN:VCALENDAR');
+    expect(ownerFile.body).toContain('Museum visit');
+    // 10:00 in New York on 2 October is 14:00 UTC, written absolutely.
+    expect(ownerFile.body).toContain('DTSTART:20261002T140000Z');
+
+    // Grace attends neither, so her calendar is empty rather than everyone's.
+    const guestFile = await call('GET', `/api/trips/${tripId}/export.ics`, guest);
+    expect(guestFile.statusCode).toBe(200);
+    expect(guestFile.body).not.toContain('Museum visit');
+    expect(guestFile.body).not.toContain('Solo walk');
+  });
+
+  it('refuses to export a trip the caller is not in', async () => {
+    const { tripId } = await twoPersonTrip();
+    const outsider = harness.identity('outsider');
+    const response = await call('GET', `/api/trips/${tripId}/export.ics`, outsider);
+    expect(response.statusCode).toBe(404);
+  });
+});

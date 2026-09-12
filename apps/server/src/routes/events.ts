@@ -28,6 +28,7 @@ import { requireMembership } from '../domain/membership.js';
 import { resolveAction } from '../domain/actions.js';
 import { requestProcessing } from '../jobs/scheduler.js';
 import { searchForTrip } from '../domain/placeSearch.js';
+import { exportSelfCalendar } from '../domain/export.js';
 
 const tripParams = z.object({ tripId: uuid });
 const eventParams = z.object({ tripId: uuid, eventId: uuid });
@@ -114,6 +115,17 @@ export function registerEventRoutes(app: FastifyInstance, deps: EventRouteDeps):
     const { tripId, actionId } = parseOrThrow(actionParams, request.params);
     const body = parseOrThrow(resolveActionRequest, request.body);
     return resolveAction(db, user.id, tripId, actionId, body);
+  });
+
+  app.get('/api/trips/:tripId/export.ics', async (request, reply) => {
+    const user = requireUser(request);
+    const { tripId } = parseOrThrow(tripParams, request.params);
+    // Self only: the events come from the caller's own attendance.
+    const file = await exportSelfCalendar(db, user.id, tripId);
+    void reply
+      .header('content-type', 'text/calendar; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${file.filename}"`);
+    return file.body;
   });
 
   app.get('/api/trips/:tripId/deletions', async (request) => {

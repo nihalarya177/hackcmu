@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { CalendarDays, History, Link2, Map as MapIcon } from 'lucide-react';
+import { CalendarDays, Download, History, Link2, Map as MapIcon } from 'lucide-react';
 import type { SnapshotResponse } from '@trip/contracts';
 import { ApiRequestError, api } from '../lib/api';
 import { BudgetRail } from './BudgetRail';
@@ -111,6 +111,7 @@ export function Planner({ tripId }: { tripId: string }): React.ReactElement {
             <ViewTab active={view === 'map'} onClick={() => setView('map')} icon={MapIcon}>
               Map
             </ViewTab>
+            <ExportButton snapshot={data} />
             {data.recent_deletions.length > 0 && (
               <button
                 type="button"
@@ -215,6 +216,22 @@ function TopBar({
         </button>
       )}
     </header>
+  );
+}
+
+/**
+ * Your own calendar, as a real file. The server decides what is yours: the
+ * link is the same for everyone, and each person gets their own plan.
+ */
+function ExportButton({ snapshot }: { snapshot: SnapshotResponse }): React.ReactElement {
+  return (
+    <a
+      href={`/api/trips/${snapshot.trip.id}/export.ics`}
+      className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
+    >
+      <Download aria-hidden className="size-3.5" />
+      My calendar
+    </a>
   );
 }
 

@@ -24,6 +24,7 @@
     "@trip/db": "*",
     "drizzle-orm": "0.45.2",
     "fastify": "5.12.4",
+    "ical-generator": "9.0.0",
     "luxon": "3.7.2",
     "opening_hours": "3.9.0",
     "pg": "8.23.0",

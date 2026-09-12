@@ -1,16 +1,30 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import {
   PROCESSING_LIMITS,
-  type PersonBudgetResource,
+  TRIP_LIMITS,
   type ProcessingState,
   type ProcessingStatusResource,
   type ProcessingStatusResponse,
   type SnapshotResponse,
 } from '@trip/contracts';
-import { person, workerHeartbeat, type Database } from '@trip/db';
+import { botAction, event, person, workerHeartbeat, type Database } from '@trip/db';
+import {
+  attachWarningKeys,
+  deriveBudgets,
+  deriveDayPaths,
+  deriveUnknownCoverage,
+} from './derive.js';
 import { AppError } from './errors.js';
+import { tombstonesFor } from './events.js';
 import { requireMembership, type TripRow } from './membership.js';
-import { toPersonResource, toTripResource } from './serializers.js';
+import {
+  toBotActionResource,
+  toDeletedEventResource,
+  toPersonResource,
+  toTripResource,
+} from './serializers.js';
+import { readTripState, readWarnings } from './state.js';
+import { enumerateTripDates } from './tripDates.js';
 import type { Executor } from './types.js';
 
 export interface SnapshotServiceDeps {
@@ -26,9 +40,10 @@ export interface SnapshotServiceDeps {
  * derived state all describe the same committed instant. A sequence of
  * independently timed reads could otherwise report a version that never existed.
  *
- * Event, place, warning and path projections are filled in by the milestones
- * that own those rules; they are read from this same transaction rather than
- * fetched separately.
+ * Budgets, unknown coverage and day paths are derived from this same read
+ * rather than stored, so they cannot describe a different instant from the
+ * events they summarise. Warnings are stored, because their activation and
+ * resolution versions are history that a recomputation would lose.
  */
 export async function readSnapshot(
   deps: SnapshotServiceDeps,
@@ -52,25 +67,46 @@ export async function readSnapshot(
       }
 
       const processing = await readProcessingStatus(tx, tripRow, deps.appRevision);
+      const state = await readTripState(tx, tripId);
+      const warnings = await readWarnings(tx, tripId);
+      const dates = enumerateTripDates(tripRow.startDate, tripRow.endDate);
+
+      // One bounded page plus one, so "there are older ones" is answered
+      // without a second request and without an unbounded read.
+      const deletedRows = await tx
+        .select()
+        .from(event)
+        .where(and(eq(event.tripId, tripId), isNotNull(event.deletedAt)))
+        .orderBy(desc(event.deletedAt))
+        .limit(TRIP_LIMITS.recentDeletionsInSnapshot + 1);
+      const recent = deletedRows.slice(0, TRIP_LIMITS.recentDeletionsInSnapshot);
+      const stones = await tombstonesFor(
+        tx,
+        tripId,
+        recent.map((row) => row.id),
+      );
+
+      const actionRows = await tx
+        .select()
+        .from(botAction)
+        .where(eq(botAction.tripId, tripId))
+        .orderBy(desc(botAction.createdAt))
+        .limit(50);
 
       return {
         trip: toTripResource(tripRow, creator.id),
         self_person_id: self.id,
         members,
-        events: [],
-        attendance: [],
-        places: [],
-        budgets: memberRows.map(emptyBudget),
-        warnings: [],
-        unknown_coverage: {
-          unknown_price_event_ids: [],
-          unresolved_place_event_ids: [],
-          unknown_hours_event_ids: [],
-        },
-        day_paths: [],
-        actions: [],
-        recent_deletions: [],
-        has_more_deletions: false,
+        events: state.events,
+        attendance: state.attendance,
+        places: state.places,
+        budgets: deriveBudgets(state),
+        warnings,
+        unknown_coverage: deriveUnknownCoverage(state),
+        day_paths: attachWarningKeys(deriveDayPaths(state, dates), warnings),
+        actions: actionRows.map(toBotActionResource),
+        recent_deletions: recent.map((row) => toDeletedEventResource(row, stones.get(row.id))),
+        has_more_deletions: deletedRows.length > TRIP_LIMITS.recentDeletionsInSnapshot,
         calendar_version: tripRow.calendarVersion.toString(),
         processing,
         server_time: new Date().toISOString(),
@@ -78,19 +114,6 @@ export async function readSnapshot(
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   );
-}
-
-/** No events exist yet, so nothing is spent and nothing is unknown. */
-function emptyBudget(row: typeof person.$inferSelect): PersonBudgetResource {
-  return {
-    person_id: row.id,
-    budget_cents: row.budgetCents,
-    known_spend_cents: 0,
-    estimate_subtotal_cents: 0,
-    confirmed_subtotal_cents: 0,
-    unknown_price_event_count: 0,
-    status: 'within',
-  };
 }
 
 /**

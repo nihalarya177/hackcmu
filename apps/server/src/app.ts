@@ -4,6 +4,7 @@ import type { Database } from '@trip/db';
 import type { AccessTokenVerifier } from './auth/verifier.js';
 import { bearerToken } from './http/auth.js';
 import { registerErrorHandler } from './http/errors.js';
+import { registerEventRoutes } from './routes/events.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerMessageRoutes } from './routes/messages.js';
 import { registerTripRoutes } from './routes/trips.js';
@@ -55,6 +56,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerHealthRoutes(app, options.db);
   registerTripRoutes(app, { db: options.db, appRevision: options.appRevision });
   registerMessageRoutes(app, options.db);
+  registerEventRoutes(app, options.db);
 
   return app;
 }

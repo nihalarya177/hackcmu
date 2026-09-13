@@ -312,6 +312,10 @@ are unfinished operational work.
   call to Supabase Auth before any handler runs (`auth/verifier.ts`), chosen so
   that revocation is honoured. Local JWKS verification is the standard fix.
 
+## License
+
+[MIT](LICENSE).
+
 ## Known dependency advisory
 
 `npm audit` reports a moderate advisory against the old esbuild bundled inside

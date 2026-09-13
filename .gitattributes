@@ -1,0 +1,9 @@
+# The design canvas is a generated editor payload, not source. It is 2.5 MB of
+# minified HTML and would otherwise dominate GitHub's language statistics and
+# every diff that touches it.
+design/canvas/trip-planner-directions.html linguist-generated=true
+
+# Hand-authored design artboards: kept in the repository, excluded from the
+# language breakdown because they are design material rather than application
+# code.
+design/canvas/*.dc.html linguist-documentation=true
